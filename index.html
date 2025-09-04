@@ -1,922 +1,124 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Smart Study Companion</title>
-<meta name="description" content="Load PDFs/ZIP/TXT/HTML/Images, auto-organize by Class/Subject/Chapter using a syllabus map + content detection. Summaries, quizzes, voice, libraries, archives. Demo/Pro controls. Works offline."/>
-<style>
-:root{
-  --bg:#0e1117;--panel:#141a23;--muted:#9fb0c0;--ink:#e7eef6;--line:#263044;
-  --accent:#50b8ff;--go:#2ecc71;--warn:#ffae42;--bad:#ff5c6c;--chip:#212a38
-}
-*{box-sizing:border-box}
-html,body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,Inter,Roboto,Arial,sans-serif}
-.container{max-width:1220px;margin:0 auto;padding:16px}
-h1{font-size:22px;margin:8px 0 14px;display:flex;gap:10px;align-items:center}
-.badge{font-size:12px;background:var(--chip);padding:4px 8px;border-radius:999px;color:#cfe2ff}
-.top{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:8px 0 16px}
-select,input,button,textarea{background:#0c1017;border:1px solid var(--line);color:var(--ink);border-radius:10px;padding:10px 12px;font:inherit}
-button{cursor:pointer}
-.btn{background:#223049} .btn:hover{filter:brightness(1.07)}
-.btn.primary{background:var(--accent);color:#001221;border-color:#3a8ec1}
-.btn.good{background:var(--go);color:#00170a;border-color:#1b9e56}
-.btn.warn{background:var(--warn);color:#1a1000}
-.btn.bad{background:var(--bad)}
-.grid{display:grid;gap:14px}
-@media(min-width:980px){.grid{grid-template-columns:1.05fr 1fr}}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px}
-.card h3{margin:2px 0 10px;font-size:16px;color:#cfe3ff}
-.small{font-size:12px;color:var(--muted)}
-hr{border:0;border-top:1px solid var(--line);margin:12px 0}
-.kv{display:flex;gap:8px;align-items:center;background:var(--chip);padding:6px 10px;border-radius:10px}
-.table{width:100%;border-collapse:collapse;font-size:14px}
-.table th,.table td{border-bottom:1px dashed var(--line);padding:8px 6px;vertical-align:top}
-.table input[type=checkbox]{transform:translateY(2px)}
-.tabs{display:flex;gap:8px;flex-wrap:wrap}
-.tabs .tab{background:var(--chip);border:1px solid var(--line);padding:8px 12px;border-radius:10px;cursor:pointer}
-.tabs .tab.active{background:#1b2536}
-.section{display:none} .section.active{display:block}
-.chips{display:flex;flex-wrap:wrap;gap:8px}
-.chips .chip{background:var(--chip);padding:6px 10px;border-radius:999px;font-size:12px}
-.lock{opacity:.6;pointer-events:none;filter:grayscale(0.3)}
-#toast{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);background:#1565c0;color:#fff;padding:10px 14px;border-radius:10px;z-index:9999;opacity:0;transition:opacity .35s}
-kbd{background:#0b0e13;border:1px solid #283245;border-radius:6px;padding:2px 6px;font-size:12px}
-.status{padding:4px 8px;border-radius:999px;border:1px solid var(--line);font-size:12px}
-.status.free{background:#201a12;color:#ffd6a1;border-color:#5a4325}
-.status.pro{background:#132018;color:#b9ffd6;border-color:#1e6a46}
-.modal{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:center;justify-content:center;z-index:9998}
-.modal .box{background:#0f1520;border:1px solid var(--line);border-radius:14px;padding:18px;max-width:520px;width:92%}
-</style>
-<!-- Libraries -->
-<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.6.82/pdf.min.js"></script>
-<script>pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.6.82/pdf.worker.min.js";</script>
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.0/dist/tesseract.min.js"></script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SmartStudy Companion — General Edition</title>
+  <meta name="theme-color" content="#0f172a" />
+  <style>
+    :root { --bg:#0b1220; --panel:#111827; --ink:#e5e7eb; --dim:#9ca3af; --brand:#22c55e; }
+    html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Inter,sans-serif}
+    .wrap{max-width:1100px;margin:20px auto;padding:0 16px}
+    h1{font-weight:700;font-size:22px;margin:0 0 10px}
+    .row{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+    .chip, button, select, input[type="text"]{
+      background:#0f172a;border:1px solid #334155;color:var(--ink);border-radius:10px;
+      padding:10px 12px;outline:none
+    }
+    .chip{opacity:.9}
+    button{cursor:pointer}
+    button.primary{background:var(--brand);border-color:var(--brand);color:#0b0f19;font-weight:700}
+    .panel{background:var(--panel);border:1px solid #1f2937;border-radius:16px;padding:14px;margin:14px 0}
+    .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+    textarea{width:100%;min-height:180px;background:#0b1220;color:var(--ink);border:1px solid #334155;border-radius:12px;padding:12px}
+    table{width:100%;border-collapse:collapse;margin:8px 0 0}
+    th,td{border-bottom:1px solid #1f2937;padding:10px 8px;text-align:left;font-size:14px}
+    th{color:var(--dim);font-weight:600}
+    .hint{color:var(--dim);font-size:13px}
+    .pill{padding:2px 8px;border-radius:999px;font-size:12px;background:#0b1220;border:1px solid #334155;color:var(--dim)}
+    .right{margin-left:auto}
+    a{color:#93c5fd;text-decoration:none}
+    .badge{background:#fde68a;color:#1f2937;border-radius:8px;padding:4px 8px;font-size:12px;margin-left:6px}
+  </style>
 </head>
 <body>
-<div class="container">
-  <h1>Smart Study Companion <span class="badge">offline after first load</span></h1>
-  <div class="top">
-    <div class="kv">👤 <input id="student" placeholder="Student name"/><button id="saveName" class="btn">Save</button></div>
-    <div class="kv">🏷️ Collection <input id="collection" value="CBSE Class 10"/><button id="setCollection" class="btn">Set</button></div>
-    <div class="kv">🔊 Voice
-      <select id="voiceLang">
-        <option value="en-IN">English (India)</option>
-        <option value="hi-IN">हिन्दी</option>
-        <option value="mr-IN">मराठी</option>
-        <option value="bn-IN">বাংলা</option>
-        <option value="ta-IN">தமிழ்</option>
-        <option value="te-IN">తెలుగు</option>
-        <option value="kn-IN">ಕನ್ನಡ</option>
-        <option value="ml-IN">മലയാളം</option>
-        <option value="or-IN">ଓଡ଼ିଆ</option>
-        <option value="gu-IN">ગુજરાતી</option>
-        <option value="pa-IN">ਪੰਜਾਬੀ</option>
+  <div class="wrap">
+    <h1>SmartStudy Companion <span class="badge">General</span></h1>
+
+    <!-- top controls -->
+    <div class="row">
+      <input id="studentName" class="chip" type="text" placeholder="Student name" style="min-width:220px">
+      <button id="saveName" class="chip">Save</button>
+
+      <select id="collection" class="chip">
+        <option>CBSE Class 10</option>
+        <option>CBSE Class 11</option>
+        <option>CBSE Class 12</option>
+        <option>Custom</option>
       </select>
-      <button id="ttsToggle" class="btn">Enable</button>
-      <span id="planPill" class="status free">Free</span>
+      <button id="setCollection" class="chip">Set</button>
+
+      <select id="voiceSelect" class="chip">
+        <option value="en-IN">English (India)</option>
+        <option value="hi-IN">हिन्दी (Hindi)</option>
+        <option value="mr-IN">मराठी (Marathi)</option>
+      </select>
+      <button id="enableTTS" class="chip">Enable voice</button>
+      <span class="hint">All processing is local in your browser.</span>
     </div>
-    <div class="kv">🎯 Target <input id="target" value="20" style="width:70px"/><button id="setTarget" class="btn">Set</button></div>
-    <div class="kv">🛂 License <button id="licenseBtn" class="btn primary">Manage</button></div>
-    <div class="kv">🎵 Welcome <button id="playGreet" class="btn">Play</button><button id="toggleGreet" class="btn">Enable</button></div>
-    <div class="kv small" id="hello"></div>
-  </div>
 
-  <div class="tabs">
-    <div class="tab active" data-tab="library">Library</div>
-    <div class="tab" data-tab="summaries">Summaries</div>
-    <div class="tab" data-tab="quiz">Quiz</div>
-    <div class="tab" data-tab="manager">Manage</div>
-    <div class="tab" data-tab="syllabus">Syllabus</div>
-    <div class="tab" data-tab="feedback">Feedback</div>
-    <div class="tab" data-tab="help">Help</div>
-  </div>
-
-  <!-- LIBRARY -->
-  <section id="library" class="section active">
-    <div class="grid">
-      <div class="card">
-        <h3>Load material (PDF / ZIP / TXT / HTML / JPG / PNG)</h3>
-        <input id="fileInput" type="file" multiple accept=".pdf,application/pdf,.zip,application/zip,.txt,text/plain,.html,text/html,.jpg,.jpeg,.png,image/*"/>
-        <div class="small">Plan limits apply. ZIPs auto-unpack. Class/Subject/Chapter detected from syllabus map + content (filenames not required).</div>
-        <hr>
-        <div class="chips" id="subjectsChips"></div>
-        <hr>
-        <label><input type="checkbox" id="kbcMode"/> KBC tone (prompts/feedback)</label>
+    <!-- library / upload -->
+    <div class="panel">
+      <div class="toolbar">
+        <strong>Load material</strong>
+        <span class="pill">PDF / TXT / HTML / PNG / JPG / ZIP</span>
+        <span class="right hint">ZIPs auto-unpack • up to ~500 MB (device/RAM permitting)</span>
+      </div>
+      <input id="fileInput" type="file" multiple class="chip"
+             accept=".pdf,.txt,.md,.html,.htm,.jpg,.jpeg,.png,.zip,application/pdf,application/zip" />
+      <div class="hint" style="margin-top:8px">
+        Tip: Clear subject/chapter names inside PDFs help auto-grouping (not mandatory).
       </div>
 
-      <div class="card">
-        <h3>Current library — <span id="libName">CBSE Class 10</span></h3>
-        <table class="table" id="docsTable">
-          <thead><tr><th><input type="checkbox" id="selAll"/></th><th>Subject</th><th>Chapter</th><th>Title</th><th>Len</th></tr></thead>
-          <tbody></tbody>
+      <div id="libraryPanel" class="panel">
+        <div class="toolbar">
+          <strong>Current library</strong>
+          <span id="libCollection" class="pill">CBSE Class 10</span>
+          <button id="clearLib" class="chip right">Clear library</button>
+        </div>
+        <div class="hint">Select a row and use “Summaries” or “Quiz”.</div>
+        <table id="libTable">
+          <thead><tr><th>Subject</th><th>Chapter</th><th>Title</th><th>Pages</th></tr></thead>
+          <tbody id="libBody"></tbody>
         </table>
-        <div class="small">Select rows → <b>Manage</b> tab for archive/restore/delete (chapter/subject/collection).</div>
       </div>
     </div>
-  </section>
 
-  <!-- SUMMARIES -->
-  <section id="summaries" class="section">
-    <div class="card">
-      <h3>Summaries</h3>
-      <div class="top">
-        <button id="btnSummQuick" class="btn">Quick</button>
-        <button id="btnSummDetail" class="btn">Detailed</button>
-        <button id="speakOut" class="btn">🔊 Read</button>
-        <button id="copyOut" class="btn">📋 Copy</button>
+    <!-- actions -->
+    <div class="panel">
+      <div class="toolbar">
+        <button id="doSummaryQuick" class="primary">Summaries (Quick)</button>
+        <button id="doSummaryDetailed" class="">Summaries (Detailed)</button>
+        <button id="doQuiz" class="">Quiz (MCQ)</button>
+        <button id="readAloud" class="right">🔊 Read</button>
+        <button id="copyOut">📋 Copy</button>
       </div>
-      <textarea id="out" placeholder="Summaries will appear here…" style="width:100%;min-height:320px"></textarea>
+      <textarea id="outBox" placeholder="Summaries / Questions will appear here…"></textarea>
     </div>
-  </section>
 
-  <!-- QUIZ -->
-  <section id="quiz" class="section">
-    <div class="card">
-      <h3>Quiz</h3>
-      <div class="top">
-        <select id="quizType">
-          <option value="mcq4">MCQ (4 choices)</option>
-          <option value="truefalse">True / False</option>
-          <option value="short">Short answer</option>
-          <option value="desc">Descriptive</option>
-        </select>
-        <select id="timerSel">
-          <option value="0">No timer</option>
-          <option value="15">15s</option>
-          <option value="30">30s</option>
-          <option value="60">60s</option>
-        </select>
-        <button id="makeQuiz" class="btn good">Generate</button>
-        <button id="readQuiz" class="btn">🔊 Read</button>
-        <button id="copyQuiz" class="btn">📋 Copy</button>
+    <div class="panel">
+      <div class="toolbar"><strong>Help</strong></div>
+      <div class="hint">
+        • Upload PDFs or a ZIP (auto-unpacks).<br/>
+        • App groups items into Subject/Chapter using simple heuristics + your collection choice.<br/>
+        • Nothing is uploaded to any server. Everything runs in your browser.
       </div>
-      <textarea id="quizBox" placeholder="Quiz appears here…" style="width:100%;min-height:320px"></textarea>
-    </div>
-  </section>
-
-  <!-- MANAGER -->
-  <section id="manager" class="section">
-    <div class="grid">
-      <div class="card">
-        <h3>Save / Load / Export</h3>
-        <div class="top">
-          <button id="saveLib" class="btn primary">💾 Save current collection</button>
-          <button id="loadLib" class="btn">📂 Load</button>
-          <button id="exportLib" class="btn">⬇️ Export JSON</button>
-          <input id="importJson" type="file" accept="application/json" />
-        </div>
-        <div class="small">Saved locally (IndexedDB). Export to backup/share; Import to restore. Multiple collections supported.</div>
-        <div id="libList" class="chips" style="margin-top:8px"></div>
-      </div>
-
-      <div class="card">
-        <h3>Archive / Restore / Delete</h3>
-        <div class="top">
-          <select id="opLevel">
-            <option value="chapter">Selected Chapters</option>
-            <option value="subject">Selected Subjects</option>
-            <option value="collection">Entire Collection</option>
-          </select>
-          <button id="opArchive" class="btn warn">Archive</button>
-          <button id="opRestore" class="btn">Restore</button>
-          <button id="opDelete" class="btn bad">Delete</button>
-        </div>
-        <div class="small">Use Library checkboxes to select rows.</div>
-      </div>
-    </div>
-  </section>
-
-  <!-- SYLLABUS -->
-  <section id="syllabus" class="section">
-    <div class="card">
-      <h3>Syllabus import / detection</h3>
-      <p class="small">Choose one: upload JSON, paste a syllabus link (NCERT/Byju’s/board page), or paste the page text. The app will parse Class → Subject → Chapter and merge into the internal map.</p>
-
-      <h4>1) Upload Syllabus JSON</h4>
-      <input id="syllJsonFile" type="file" accept="application/json"/>
-      <button id="syllJsonApply" class="btn">Apply JSON</button>
-
-      <hr>
-
-      <h4>2) Paste a syllabus link</h4>
-      <input id="syllUrl" placeholder="https://ncert.nic.in/… or https://byjus.com/…" style="width:100%;margin-bottom:8px"/>
-      <div class="top">
-        <select id="syllSource">
-          <option value="auto">Auto-detect</option>
-          <option value="ncert">NCERT-like</option>
-          <option value="byjus">Byju’s-like</option>
-          <option value="generic">Generic</option>
-        </select>
-        <button id="syllFetch" class="btn good">Fetch & Parse</button>
-      </div>
-      <div class="small">Note: Some sites block browser fetch (CORS). If that happens, use option 3 below (copy–paste page text).</div>
-
-      <hr>
-
-      <h4>3) Paste page text (fallback)</h4>
-      <textarea id="syllPaste" placeholder="Paste syllabus page text here…" style="width:100%;min-height:160px"></textarea>
-      <div class="top">
-        <select id="syllStyle">
-          <option value="auto">Auto-detect</option>
-          <option value="ncert">NCERT-like</option>
-          <option value="byjus">Byju’s-like</option>
-          <option value="generic">Generic</option>
-        </select>
-        <button id="syllParse" class="btn">Parse Text</button>
-        <button id="syllPreview" class="btn">Preview Map</button>
-        <button id="syllApply" class="btn primary">Apply to App</button>
-      </div>
-
-      <hr>
-      <label><input type="checkbox" id="syllAutoAsk"/> Ask me during big imports to auto-detect syllabus</label>
-    </div>
-  </section>
-
-  <!-- FEEDBACK -->
-  <section id="feedback" class="section">
-    <div class="card">
-      <h3>Share ideas & improvements</h3>
-      <textarea id="idea" placeholder="Your idea / suggestion…" style="width:100%;min-height:150px"></textarea>
-      <div class="top">
-        <button id="addIdea" class="btn">Add</button>
-        <button id="exportIdeas" class="btn">Export ideas (JSON)</button>
-        <a id="emailIdeas" class="btn" href="#" target="_blank">Email ideas</a>
-      </div>
-      <ul id="ideasList" class="chips"></ul>
-    </div>
-  </section>
-
-  <!-- HELP -->
-  <section id="help" class="section">
-    <div class="card">
-      <h3>Help (quick)</h3>
-      <ul>
-        <li><b>Import:</b> PDF/ZIP/TXT/HTML/JPG/PNG. ZIPs auto-unpack. No clean filenames required; app uses syllabus map + content.</li>
-        <li><b>Organize:</b> Class/Subject/Chapter inferred via built-in syllabus (overridable by JSON/Link/Paste).</li>
-        <li><b>Summaries & Quizzes:</b> Quick/Detailed + MCQ/TF/Short/Desc with optional timer; voice read-out.</li>
-        <li><b>Libraries:</b> Set “Collection” first; Save/Load/Export/Import.</li>
-        <li><b>Archive/Restore/Delete:</b> chapter/subject/collection levels.</li>
-        <li><b>Demo/Pro:</b> License button controls limits. You can also load a CONTROL_MASTER.json without editing code.</li>
-        <li><b>Offline:</b> Works after first load (browser cache).</li>
-      </ul>
-    </div>
-  </section>
-
-  <!-- GREETING MODAL -->
-  <div id="greetModal" class="modal">
-    <div class="box">
-      <h3>Welcome to Smart Study Companion</h3>
-      <p class="small">Your study buddy for fast summaries, quizzes, and organised revision. Load your materials and go!</p>
-      <div class="top">
-        <button id="greetPlay" class="btn good">Play music</button>
-        <button id="greetClose" class="btn">Close</button>
-      </div>
-      <label class="small"><input type="checkbox" id="greetShowAgain" checked/> Show this greeting next time</label>
     </div>
   </div>
 
-  <div id="toast"></div>
-</div>
-
-<script>
-/* ===================== CONTROL MASTER & LICENSE ===================== */
-const DEFAULT_FREE_FLAGS = {
-  plan: "free",
-  maxFileSizeMB: 120,
-  zipImport: true,
-  ocr: false,
-  languages: ["en-IN","hi-IN","mr-IN"],
-  timerMaxSec: 30,
-  exportJson: true,
-  collectionsMax: 3,
-  docsPerCollection: 120,
-  quizDesc: false
-};
-const DEFAULT_PRO_FLAGS = {
-  plan: "pro",
-  maxFileSizeMB: 500,
-  zipImport: true,
-  ocr: true,
-  languages: ["en-IN","hi-IN","mr-IN","bn-IN","ta-IN","te-IN","kn-IN","ml-IN","or-IN","gu-IN","pa-IN"],
-  timerMaxSec: 300,
-  exportJson: true,
-  collectionsMax: 50,
-  docsPerCollection: 5000,
-  quizDesc: true
-};
-let FLAGS = JSON.parse(localStorage.getItem("ssc_flags")||"null") || DEFAULT_FREE_FLAGS;
-function applyFlags(){
-  const pill = document.getElementById("planPill");
-  pill.textContent = FLAGS.plan==="pro" ? "Pro" : "Free";
-  pill.className = "status " + (FLAGS.plan==="pro"?"pro":"free");
-  const voiceSel = document.getElementById("voiceLang");
-  [...voiceSel.options].forEach(o=>{ o.disabled = !FLAGS.languages.includes(o.value); });
-  const ts = document.getElementById("timerSel");
-  [...ts.options].forEach(o=>{ const v=parseInt(o.value||"0",10); if(v>FLAGS.timerMaxSec) o.disabled=true; });
-}
-applyFlags();
-document.getElementById("licenseBtn").onclick = ()=>{
-  const choice = prompt("License options:\n1) Switch to PRO (local)\n2) Switch to FREE (local)\n3) Load CONTROL_MASTER.json\n\nEnter 1/2/3");
-  if(choice==="1"){ FLAGS = DEFAULT_PRO_FLAGS; localStorage.setItem("ssc_flags", JSON.stringify(FLAGS)); applyFlags(); toast("Switched to PRO (local)","ok"); }
-  else if(choice==="2"){ FLAGS = DEFAULT_FREE_FLAGS; localStorage.setItem("ssc_flags", JSON.stringify(FLAGS)); applyFlags(); toast("Switched to FREE (local)","ok"); }
-  else if(choice==="3"){
-    const inp = document.createElement("input"); inp.type="file"; inp.accept="application/json";
-    inp.onchange = async e=>{
-      const f=e.target.files?.[0]; if(!f) return;
-      try{
-        const json = JSON.parse(await f.text());
-        FLAGS = {...DEFAULT_FREE_FLAGS, ...json};
-        localStorage.setItem("ssc_flags", JSON.stringify(FLAGS));
-        applyFlags(); toast("Control Master applied","ok");
-      }catch{ toast("Invalid CONTROL_MASTER.json","error"); }
-    };
-    inp.click();
-  }
-};
-
-/* ===================== STATE ===================== */
-const APP = {
-  collection: localStorage.getItem("ssc_collection") || "CBSE Class 10",
-  name: localStorage.getItem("ssc_name") || "",
-  target: parseInt(localStorage.getItem("ssc_target")||"20",10),
-  docs: [],
-  tts:false, voiceLang: localStorage.getItem("ssc_voice")||"en-IN",
-  kbc:false, ideas: JSON.parse(localStorage.getItem("ssc_ideas")||"[]"),
-  greetEnabled: JSON.parse(localStorage.getItem("ssc_greet_enabled")||"true")
-};
-document.getElementById("collection").value = APP.collection;
-document.getElementById("libName").textContent = APP.collection;
-document.getElementById("student").value = APP.name;
-document.getElementById("hello").textContent = APP.name? `Hi ${APP.name}!` : "";
-document.getElementById("target").value = APP.target;
-document.getElementById("voiceLang").value = APP.voiceLang;
-
-/* ===================== SYLLABUS (built-in) ===================== */
-let SYLLABUS = {
-  "CBSE Class 10": {
-    "Mathematics": ["Real Numbers","Polynomials","Pair of Linear Equations in Two Variables","Quadratic Equations","Arithmetic Progressions","Triangles","Coordinate Geometry","Introduction to Trigonometry","Applications of Trigonometry","Circles","Constructions","Areas Related to Circles","Surface Areas and Volumes","Statistics","Probability"],
-    "Science": ["Chemical Reactions and Equations","Acids, Bases and Salts","Metals and Non-metals","Carbon and its Compounds","Periodic Classification of Elements","Life Processes","Control and Coordination","How do Organisms Reproduce?","Heredity and Evolution","Light – Reflection and Refraction","The Human Eye and the Colourful World","Electricity","Magnetic Effects of Electric Current","Sources of Energy","Our Environment","Sustainable Management of Natural Resources"],
-    "History": ["The Rise of Nationalism in Europe","Nationalism in India"],
-    "Geography": ["Resources and Development","Forest and Wildlife Resources"],
-    "Political Science": ["Power Sharing","Federalism"],
-    "Economics": ["Development","Sectors of the Indian Economy"],
-    "English": ["First Flight — Chapter 1","Footprints Without Feet — Chapter 1"],
-    "Information Technology": ["Communication Skills","Self Management Skills","ICT Skills","Entrepreneurial Skills","Green Skills"]
-  },
-  "CBSE Class 11": {
-    "Mathematics": ["Sets","Relations and Functions","Trigonometric Functions"],
-    "Physics": ["Physical World","Units and Measurements","Motion in a Straight Line"],
-    "Chemistry": ["Some Basic Concepts of Chemistry","Structure of Atom"],
-    "Biology": ["The Living World","Biological Classification"],
-    "English": ["Hornbill — Chapter 1","Snapshots — Chapter 1"],
-    "Information Technology": ["Employability Skills","IT — Theory & Lab"]
-  }
-};
-
-/* ===================== HELPERS ===================== */
-const $ = s=>document.querySelector(s);
-const $$ = s=>Array.from(document.querySelectorAll(s));
-function toast(msg, kind="info"){
-  const el=$("#toast");
-  const color={ok:"#2e7d32",warn:"#b26a00",error:"#c62828",info:"#1565c0"}[kind]||"#1565c0";
-  el.style.background=color; el.textContent=msg; el.style.opacity="1";
-  setTimeout(()=>el.style.opacity="0",2400);
-}
-function tc(s){return s.split(" ").map(w=>w? w[0].toUpperCase()+w.slice(1) : w).join(" ");}
-function sentences(txt){ return txt.replace(/\s+/g," ").split(/(?<=[.?!])\s+(?=[A-Z0-9])/).filter(Boolean).slice(0,1200); }
-function shuffle(a){ for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]];} return a; }
-
-/* ===================== NAV ===================== */
-$$(".tab").forEach(t=>t.onclick=()=>{
-  $$(".tab").forEach(x=>x.classList.remove("active"));
-  t.classList.add("active");
-  const id=t.dataset.tab;
-  $$(".section").forEach(x=>x.classList.remove("active"));
-  $("#"+id).classList.add("active");
-});
-
-/* ===================== PROFILE / COLLECTION ===================== */
-$("#saveName").onclick=()=>{ APP.name=$("#student").value.trim(); localStorage.setItem("ssc_name",APP.name); $("#hello").textContent=APP.name?`Hi ${APP.name}!`:""; toast("Name saved","ok"); };
-$("#setCollection").onclick=()=>{ APP.collection=$("#collection").value.trim()||APP.collection; localStorage.setItem("ssc_collection",APP.collection); $("#libName").textContent=APP.collection; rebuildUI(); toast("Collection set","ok"); };
-$("#setTarget").onclick=()=>{ APP.target=parseInt($("#target").value||"20",10); localStorage.setItem("ssc_target", APP.target); toast("Target saved","ok"); };
-
-/* ===================== VOICE ===================== */
-document.getElementById("voiceLang").onchange=()=>{ const v=$("#voiceLang").value; if(!FLAGS.languages.includes(v)){ toast("Language locked in Free plan","warn"); $("#voiceLang").value = FLAGS.languages[0]; return; } APP.voiceLang=v; localStorage.setItem("ssc_voice",v); };
-document.getElementById("ttsToggle").onclick=()=>{ APP.tts=!APP.tts; $("#ttsToggle").textContent=APP.tts? "Enabled":"Enable"; if(APP.tts) speak("Voice enabled", APP.voiceLang); };
-function speak(text, lang){ try{ const u=new SpeechSynthesisUtterance(text); u.lang=lang||APP.voiceLang; speechSynthesis.speak(u);}catch{} }
-
-/* ===================== GREETING (music + modal) ===================== */
-const greetModal=$("#greetModal"), greetShowAgain=$("#greetShowAgain");
-$("#toggleGreet").onclick=()=>{ APP.greetEnabled=!APP.greetEnabled; localStorage.setItem("ssc_greet_enabled", JSON.stringify(APP.greetEnabled)); toast(APP.greetEnabled?"Greeting enabled":"Greeting disabled","ok"); };
-$("#playGreet").onclick=()=> playGreeting();
-$("#greetPlay").onclick=()=> playGreeting();
-$("#greetClose").onclick=()=>{ greetModal.style.display="none"; localStorage.setItem("ssc_greet_enabled", JSON.stringify(greetShowAgain.checked)); };
-(function maybeShowGreet(){
-  if(JSON.parse(localStorage.getItem("ssc_greet_enabled")||"true")) greetModal.style.display="flex";
-})();
-async function playGreeting(){
-  try{
-    const ac = new (window.AudioContext||window.webkitAudioContext)();
-    const notes=[262,330,392,523,392,523,659];
-    let t=ac.currentTime;
-    notes.forEach((f,i)=>{
-      const o=ac.createOscillator(); const g=ac.createGain();
-      o.type="sine"; o.frequency.value=f;
-      g.gain.setValueAtTime(0.0001,t);
-      g.gain.exponentialRampToValueAtTime(0.25,t+0.02);
-      g.gain.exponentialRampToValueAtTime(0.0001,t+0.35);
-      o.connect(g).connect(ac.destination); o.start(t); o.stop(t+0.36);
-      t+=0.19;
-    });
-    speak("Welcome to Smart Study Companion. Load your material to begin.", "en-IN");
-  }catch{}
-}
-
-/* ===================== FILE INPUT ===================== */
-document.getElementById("fileInput").addEventListener("change", async (e)=>{
-  const files = Array.from(e.target.files||[]);
-  for (const f of files) await importAny(f);
-  rebuildUI();
-  toast("📚 Import finished","ok");
-});
-
-/* ===================== IMPORT ROUTER ===================== */
-async function importAny(file, originPath=""){
-  const max = (FLAGS.maxFileSizeMB||120)*1024*1024;
-  if(file.size>max){ toast(`⚠️ ${file.name} > ${FLAGS.maxFileSizeMB} MB (plan limit)`, "warn"); return; }
-  const n=file.name.toLowerCase();
-  if(n.endsWith(".zip")){ if(!FLAGS.zipImport){ toast("ZIP locked in plan","warn"); return; } return importZip(file); }
-  if(n.match(/\.(pdf)$/)) return importPdf(file, originPath);
-  if(n.match(/\.(txt)$/)){ const t=await file.text(); return indexText(t,file.name,originPath,"text"); }
-  if(n.match(/\.(html?|htm)$/)){ const raw=await file.text(); const doc=new DOMParser().parseFromString(raw,"text/html"); const t=(doc.body?doc.body.innerText:raw.replace(/<[^>]+>/g," ")); return indexText(t,file.name,originPath,"text"); }
-  if(n.match(/\.(png|jpe?g)$/)){ if(!FLAGS.ocr){ toast("OCR (images) locked in Free plan","warn"); return; } return importImageOCR(file, originPath); }
-  toast(`ℹ️ ${file.name} not supported`,"info");
-}
-
-/* ===================== ZIP ===================== */
-async function importZip(zipBlob){
-  try{
-    const zip = await JSZip.loadAsync(zipBlob);
-    const jobs=[];
-    zip.forEach((path, entry)=>{
-      if(entry.dir) return;
-      if(!path.match(/\.(pdf|txt|html?|htm|png|jpe?g)$/i)) return;
-      jobs.push((async()=>{
-        const blob=await entry.async("blob");
-        const f=new File([blob], path.split("/").pop(), {type:mime(path)});
-        await importAny(f, path);
-      })());
-    });
-    await Promise.all(jobs);
-    toast(`✅ Unpacked ${jobs.length} files from ${zipBlob.name}`,"ok");
-  }catch{ toast("ZIP error","error"); }
-}
-function mime(p){ p=p.toLowerCase(); if(p.endsWith(".pdf"))return"application/pdf"; if(p.endsWith(".txt"))return"text/plain"; if(p.endsWith(".html")||p.endsWith(".htm"))return"text/html"; if(p.match(/\.(png|jpe?g)$/))return"image/*"; return"application/octet-stream"; }
-
-/* ===================== PDF ===================== */
-async function importPdf(file, originPath=""){
-  try{
-    const url=URL.createObjectURL(file);
-    const pdf=await pdfjsLib.getDocument({url}).promise;
-    let text=""; const maxPages=Math.min(pdf.numPages, 50);
-    for(let p=1;p<=maxPages;p++){
-      const page=await pdf.getPage(p);
-      const content=await page.getTextContent();
-      text += " " + content.items.map(i=>i.str).join(" ");
+  <!-- Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.worker.min.js" crossorigin="anonymous"></script>
+  <script>
+    // make sure pdf.js knows its worker
+    if (window.pdfjsLib && pdfjsLib.GlobalWorkerOptions) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc =
+        "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.worker.min.js";
     }
-    URL.revokeObjectURL(url);
-    await indexText(text, file.name, originPath, "pdf");
-  }catch{ toast(`PDF error: ${file.name}`,"error"); }
-}
+  </script>
 
-/* ===================== OCR ===================== */
-async function importImageOCR(file, originPath=""){
-  try{
-    toast(`🔎 OCR: ${file.name}…`);
-    const { data } = await Tesseract.recognize(file, "eng");
-    const txt = (data && data.text) ? data.text : "";
-    await indexText(txt, file.name, originPath, "img");
-    toast(`✅ OCR done: ${file.name}`,"ok");
-  }catch{ toast(`OCR failed: ${file.name}`,"error"); }
-}
-
-/* ===================== AUTO ORGANISE (Class→Subject→Chapter) ===================== */
-function inferSubjectChapterFromContent(text, collectionHint, fileHint=""){
-  const map = SYLLABUS[collectionHint] || SYLLABUS["CBSE Class 10"] || {};
-  const subjects = Object.keys(map);
-  let bestSubject="General", bestS=0;
-  const t = (" " + text + " " + fileHint).toLowerCase();
-  const subjectKeywords = {
-    "Mathematics": ["equation","polynomial","trigonometry","geometry","probability","theorem","ratio","algebra","coordinate","triangle","circle"],
-    "Science": ["reaction","acid","base","metal","compound","reproduction","heredity","evolution","current","voltage","magnetic","refraction","organism","photosynthesis"],
-    "Physics": ["velocity","acceleration","force","optics","electric","magnetic","refraction","lens","motion","newton","ohm","circuit"],
-    "Chemistry": ["reaction","equation","acid","salt","non-metal","periodic","carbon","hydrocarbon","bond"],
-    "Biology": ["cell","tissue","reproduction","heredity","respiration","enzyme","photosynthesis","organism"],
-    "Geography": ["resource","climate","river","soil","population","agriculture","industry","landforms","monsoon","mineral"],
-    "History": ["nationalism","empire","revolt","colony","civilization","movement","war","fascism","nazism","industrial revolution"],
-    "Political Science": ["federalism","power sharing","constitution","democracy","rights","election","legislature","executive","citizen"],
-    "Economics": ["sector","development","budget","income","consumption","employment","market","trade","inflation","poverty"],
-    "English": ["poem","prose","chapter","story","character","author","lesson","summary","question"],
-    "Hindi": ["कविता","गद्य","अध्याय","कहानी","लेखक","पाठ"],
-    "Information Technology": ["ict","spreadsheet","database","html","css","communication skills","self management","entrepreneurial","green skills","computer","keyboard"]
-  };
-  for(const s of subjects.length?subjects:Object.keys(subjectKeywords)){
-    const kws = subjectKeywords[s] || [];
-    const score = kws.reduce((a,k)=> a + (t.includes(k)?1:0), 0);
-    if(score>bestS){ bestS=score; bestSubject=s; }
-  }
-  if(!subjects.includes(bestSubject) && subjects.length) bestSubject = subjects[0];
-  let chapter="—";
-  const list = map[bestSubject] || [];
-  let bestChScore=0, bestCh="—";
-  for(const title of list){
-    const key = title.toLowerCase().replace(/[^a-z0-9\s]/g," ").split(/\s+/).filter(w=>w.length>3);
-    const sc = key.reduce((a,w)=> a + (t.includes(w)?1:0), 0);
-    if(sc>bestChScore){ bestChScore=sc; bestCh=title; }
-  }
-  if(bestChScore>0){
-    const m = /(\d{1,2})/.exec(bestCh);
-    chapter = m ? String(Number(m[1])) : bestCh;
-  }
-  return {subject: bestSubject, chapter};
-}
-
-async function indexText(text, filename, originPath="", kind="text"){
-  const info = inferSubjectChapterFromContent(text, APP.collection, originPath||filename);
-  APP.docs.push({
-    id: crypto.randomUUID(),
-    collection: APP.collection,
-    type: kind,
-    subject: info.subject, chapter: info.chapter,
-    title: filename, text: text.replace(/\s+/g," ").trim(),
-    sourcePath: originPath||filename,
-    arch:false
-  });
-}
-
-/* ===================== UI ===================== */
-function rebuildUI(){
-  const subs=[...new Set(APP.docs.filter(d=>d.collection===APP.collection && !d.arch).map(d=>d.subject))].sort();
-  $("#subjectsChips").innerHTML = subs.length ? subs.map(s=>`<span class="chip">${s}</span>`).join("") : `<span class="small">No files yet.</span>`;
-  const rows = APP.docs
-    .filter(d=>d.collection===APP.collection && !d.arch)
-    .sort((a,b)=>(a.subject+a.chapter).localeCompare(b.subject+b.chapter))
-    .map(d=>`<tr>
-      <td><input type="checkbox" data-id="${d.id}"/></td>
-      <td><b>${d.subject}</b></td>
-      <td>${d.chapter}</td>
-      <td>${d.title}</td>
-      <td class="small">${(d.text.length/1000).toFixed(1)}k</td>
-    </tr>`).join("");
-  $("#docsTable tbody").innerHTML = rows || `<tr><td colspan="5" class="small">Add files to see them here.</td></tr>`;
-  $("#selAll").checked=false;
-}
-$("#selAll").onchange=()=> $$("#docsTable tbody input[type=checkbox]").forEach(c=>c.checked=$("#selAll").checked);
-
-/* ===================== SUMMARIES ===================== */
-function scoreSumm(text, n){
-  const sents = sentences(text);
-  const kw = ["define","means","is","are","because","consists","includes","due to","result","cause","effect","process","type","example","property","characteristic","steps"];
-  const scored = sents.map(s=>{
-    let score = Math.min(120,s.length)/120;
-    for(const k of kw) if(s.toLowerCase().includes(k)) score+=1;
-    return {s,score};
-  }).sort((a,b)=>b.score-a.score).slice(0,n);
-  return scored.map(x=>"• "+x.s).join("\n");
-}
-function docsCurrent(){ return APP.docs.filter(d=>d.collection===APP.collection && !d.arch); }
-
-document.getElementById("btnSummQuick").onclick=()=>{
-  const docs = docsCurrent(); if(!docs.length) return toast("Add files first","warn");
-  const parts=[]; for(const d of docs){ parts.push(`## ${d.subject} · ${d.chapter}\n${scoreSumm(d.text,6)}\n`); }
-  $("#out").value = parts.join("\n"); if(APP.tts) speak("Quick summaries ready", APP.voiceLang);
-};
-document.getElementById("btnSummDetail").onclick=()=>{
-  const docs = docsCurrent(); if(!docs.length) return toast("Add files first","warn");
-  const parts=[]; for(const d of docs){ parts.push(`## ${d.subject} · ${d.chapter}\n${scoreSumm(d.text,14)}\n`); }
-  $("#out").value = parts.join("\n"); if(APP.tts) speak("Detailed summaries ready", APP.voiceLang);
-};
-document.getElementById("speakOut").onclick=()=>{ const t=$("#out").value.trim(); if(!t) return; speak(t.slice(0,12000), APP.voiceLang); };
-document.getElementById("copyOut").onclick=()=>{ navigator.clipboard.writeText($("#out").value||""); toast("Copied","ok"); };
-
-/* ===================== QUIZ ===================== */
-function makeQuestions(text, mode="mcq4", want=6){
-  const sents = sentences(text);
-  const facts = sents.filter(s=>/\b(is|are|was|were|means|called|defined|consists of|includes)\b/i.test(s)).slice(0,240);
-  const qs=[];
-  for(const s of facts){
-    if(qs.length>=want) break;
-    const m=/^(.{8,120}?)(?:\s+(is|are|means|called|defined|consists of|includes)\s+)(.*)$/i.exec(s);
-    if(!m) continue;
-    const subj=m[1].replace(/[,;:]/g,"").trim();
-    const pred=m[3].replace(/^[^A-Za-z0-9]+/,"").replace(/[,;].*/,"").trim();
-    if(mode==="truefalse"){
-      const flip=Math.random()<0.4; const wrong=pred.split(" ").reverse().join(" ");
-      qs.push({q:`${subj} — ${flip?wrong:pred}`, answer: flip?"False":"True"});
-    }else if(mode==="short"||mode==="desc"){
-      qs.push({q: (mode==="desc"?"Explain briefly: ":"Define: ")+subj, answer: pred});
-    }else{
-      const choices = shuffle([pred, pred.replace(/\b(the|a|an)\b/gi,"").trim(), pred.replace(/\b(of|for|to|in)\b/gi,"").trim(), "None of the above"]);
-      const answer = choices.indexOf(pred);
-      qs.push({q:`${subj} is …`, choices, answer});
-    }
-  }
-  return qs;
-}
-document.getElementById("makeQuiz").onclick=()=>{
-  const docs=docsCurrent(); if(!docs.length) return toast("Add files first","warn");
-  const mode=$("#quizType").value; const timer=parseInt($("#timerSel").value||"0",10);
-  if(timer > FLAGS.timerMaxSec){ toast(`Timer limited to ${FLAGS.timerMaxSec}s in your plan","warn`); return; }
-  let qs=[]; for(const d of docs){ qs=qs.concat(makeQuestions(d.text, mode, 6)); }
-  if(!qs.length) return toast("Not enough content","warn");
-  let i=1, buff=[];
-  for(const q of qs){
-    buff.push(`${i++}. ${q.q}`);
-    if(q.choices){
-      buff.push(`   A) ${q.choices[0]}`);
-      buff.push(`   B) ${q.choices[1]}`);
-      buff.push(`   C) ${q.choices[2]}`);
-      buff.push(`   D) ${q.choices[3]}`);
-      buff.push(`   Answer: ${"ABCD"[q.answer]}`);
-    }else{
-      buff.push(`   Answer: ${q.answer}`);
-    }
-    if(timer>0) buff.push(`   ⏱ ${timer}s`);
-    buff.push("");
-  }
-  $("#quizBox").value=buff.join("\n");
-  if(APP.tts){ const read = $("#quizBox").value.split("\n").slice(0,60).join(" "); speak(read, APP.voiceLang); }
-};
-document.getElementById("readQuiz").onclick=()=>{ const t=$("#quizBox").value.trim(); if(!t) return; speak(t.slice(0,12000), APP.voiceLang); };
-document.getElementById("copyQuiz").onclick=()=>{ navigator.clipboard.writeText($("#quizBox").value||""); toast("Copied","ok"); };
-
-/* ===================== IndexedDB (save/load/export/import) ===================== */
-const DBNAME="ssc_db", STORE="libs";
-let db=null;
-initDB();
-async function initDB(){
-  db = await new Promise((res,rej)=>{
-    const o=indexedDB.open(DBNAME,1);
-    o.onupgradeneeded=()=>{ const d=o.result; if(!d.objectStoreNames.contains(STORE)) d.createObjectStore(STORE); };
-    o.onsuccess=()=>res(o.result); o.onerror=()=>rej(o.error);
-  });
-  renderLibList();
-}
-function idbPut(key, value){ return new Promise((res,rej)=>{ const tx=db.transaction(STORE,"readwrite"); tx.objectStore(STORE).put(value,key); tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error); }); }
-function idbGet(key){ return new Promise((res,rej)=>{ const tx=db.transaction(STORE,"readonly"); const r=tx.objectStore(STORE).get(key); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }
-function idbKeys(){ return new Promise((res,rej)=>{ const tx=db.transaction(STORE,"readonly"); const req=tx.objectStore(STORE).getAllKeys(); req.onsuccess=()=>res(req.result||[]); req.onerror=()=>rej(req.error); }); }
-document.getElementById("saveLib").onclick=async()=>{
-  const docs=APP.docs.filter(d=>d.collection===APP.collection);
-  if(!docs.length) return toast("Nothing to save","warn");
-  await idbPut("lib:"+APP.collection, JSON.stringify(docs));
-  toast("Library saved","ok"); renderLibList();
-};
-document.getElementById("loadLib").onclick=async()=>{
-  const raw = await idbGet("lib:"+APP.collection);
-  if(!raw) return toast("No saved library for this collection","warn");
-  const arr = JSON.parse(raw);
-  APP.docs = APP.docs.filter(d=>d.collection!==APP.collection).concat(arr);
-  rebuildUI(); toast("Library loaded","ok");
-};
-document.getElementById("exportLib").onclick=()=>{
-  if(!FLAGS.exportJson) return toast("Export locked in your plan","warn");
-  const docs=APP.docs.filter(d=>d.collection===APP.collection);
-  if(!docs.length) return toast("Nothing to export","warn");
-  const blob=new Blob([JSON.stringify(docs)], {type:"application/json"});
-  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`${APP.collection.replace(/\s+/g,"_")}.json`; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),500);
-};
-document.getElementById("importJson").addEventListener("change", async e=>{
-  const f=e.target.files?.[0]; if(!f) return;
-  const text=await f.text(); let arr;
-  try{ arr=JSON.parse(text); }catch{ return toast("Invalid JSON","error"); }
-  if(!Array.isArray(arr)) return toast("Invalid library file","error");
-  arr.forEach(d=>d.collection=APP.collection);
-  APP.docs = APP.docs.filter(d=>d.collection!==APP.collection).concat(arr);
-  rebuildUI(); toast("Imported","ok");
-});
-async function renderLibList(){
-  const keys = (await idbKeys()).filter(k=>String(k).startsWith("lib:")).map(k=>String(k).slice(4));
-  document.getElementById("libList").innerHTML = keys.length ? keys.map(k=>`<span class="chip">${k}</span>`).join("") : `<span class="small">No saved libraries yet.</span>`;
-}
-
-/* ===================== ARCHIVE / RESTORE / DELETE ===================== */
-function selectedRows(){ return $$("#docsTable tbody input[type=checkbox]:checked").map(c=>c.dataset.id); }
-document.getElementById("opArchive").onclick=()=>bulkOp("arch", true);
-document.getElementById("opRestore").onclick=()=>bulkOp("arch", false);
-document.getElementById("opDelete").onclick=()=>bulkOp("delete", true);
-function bulkOp(kind, val){
-  const level=$("#opLevel").value;
-  const ids=selectedRows();
-  if(level==="collection"){
-    if(kind==="delete") APP.docs = APP.docs.filter(d=>d.collection!==APP.collection);
-    else APP.docs.filter(d=>d.collection===APP.collection).forEach(d=>d.arch = (kind==="arch")?val:false);
-  }else if(level==="subject"){
-    const subs = new Set(APP.docs.filter(d=>ids.includes(d.id)).map(d=>d.subject));
-    if(kind==="delete") APP.docs = APP.docs.filter(d=> !(d.collection===APP.collection && subs.has(d.subject)));
-    else APP.docs.filter(d=>d.collection===APP.collection && subs.has(d.subject)).forEach(d=>d.arch=(kind==="arch")?val:false);
-  }else{
-    if(kind==="delete") APP.docs = APP.docs.filter(d=> !ids.includes(d.id));
-    else APP.docs.filter(d=>ids.includes(d.id)).forEach(d=>d.arch=(kind==="arch")?val:false);
-  }
-  rebuildUI();
-  toast(kind==="delete" ? "Deleted" : (val?"Archived":"Restored"), "ok");
-}
-
-/* ===================== FEEDBACK + TOP IDEAS ===================== */
-function renderIdeas(){
-  const list = document.getElementById("ideasList");
-  list.innerHTML = APP.ideas.length ? APP.ideas.map((x,i)=>`<span class="chip">${i+1}. ${x}</span>`).join("") : `<span class="small">No ideas yet.</span>`;
-}
-renderIdeas();
-document.getElementById("addIdea").onclick=()=>{ const t=$("#idea").value.trim(); if(!t) return; APP.ideas.push(t); $("#idea").value=""; localStorage.setItem("ssc_ideas", JSON.stringify(APP.ideas)); renderIdeas(); toast("Idea added","ok"); };
-document.getElementById("exportIdeas").onclick=()=>{ const blob=new Blob([JSON.stringify(APP.ideas,null,2)], {type:"application/json"}); const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="ideas.json"; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),400); };
-document.getElementById("emailIdeas").onclick=(e)=>{ const body=encodeURIComponent(APP.ideas.map((x,i)=>`${i+1}. ${x}`).join("%0A")); e.target.href=`mailto:?subject=Smart Study Companion — ideas&body=${body}`; };
-(function addTopIdeasSummary(){
-  const fbCard=document.querySelector("#feedback .card");
-  const hr=document.createElement("hr"); fbCard.appendChild(hr);
-  const btn=document.createElement("button");
-  btn.textContent="Summarise Top Ideas"; btn.className="btn good";
-  btn.onclick=()=>{
-    if(!APP.ideas.length){ alert("Top Ideas:\n\nNo ideas yet."); return; }
-    const counts={};
-    APP.ideas.forEach(t=>{
-      const norm=t.toLowerCase().replace(/[^a-z0-9\u0900-\u097F\s]/gi,"").trim();
-      counts[norm]=(counts[norm]||0)+1;
-    });
-    const top=Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,5);
-    const summary = top.map(([idea,n],i)=>`${i+1}. ${idea} (${n}x)`).join("\n");
-    alert("Top Ideas:\n\n"+summary);
-  };
-  fbCard.appendChild(btn);
-})();
-
-/* ===================== SYLLABUS by LINK / PASTE ===================== */
-(function(){
-  const el = (id)=>document.getElementById(id);
-  let tempMap = null;
-
-  el("syllJsonApply").onclick = async ()=>{
-    const f = el("syllJsonFile").files?.[0];
-    if(!f){ toast("Select a JSON file","warn"); return; }
-    try{
-      const j = JSON.parse(await f.text());
-      if(typeof j !== "object") throw new Error("bad");
-      mergeSyllabus(j);
-      toast("Syllabus JSON applied","ok");
-    }catch{ toast("Invalid JSON","error"); }
-  };
-
-  el("syllFetch").onclick = async ()=>{
-    const url = el("syllUrl").value.trim();
-    if(!url){ toast("Enter a link","warn"); return; }
-    try{
-      const res = await fetch(url, {mode:"cors"});
-      const html = await res.text();
-      const txt = stripHtml(html);
-      const style = el("syllSource").value;
-      tempMap = parseSyllabusText(txt, style);
-      toast("Parsed from link (preview ready)","ok");
-    }catch(e){
-      console.log(e);
-      toast("Site blocked fetch (CORS). Use copy–paste method below.","warn");
-    }
-  };
-
-  el("syllParse").onclick = ()=>{
-    const txt = el("syllPaste").value.trim();
-    if(!txt){ toast("Paste page text first","warn"); return; }
-    const style = el("syllStyle").value;
-    tempMap = parseSyllabusText(txt, style);
-    toast("Parsed (preview ready)","ok");
-  };
-
-  el("syllPreview").onclick = ()=>{
-    if(!tempMap){ toast("Nothing to preview","warn"); return; }
-    alert(pretty(tempMap).slice(0,15000));
-  };
-
-  el("syllApply").onclick = ()=>{
-    if(!tempMap){ toast("Parse first","warn"); return; }
-    mergeSyllabus(tempMap);
-    tempMap = null;
-    toast("Syllabus applied to app","ok");
-  };
-
-  const AUTO_KEY = "ssc_syll_autoask";
-  el("syllAutoAsk").checked = JSON.parse(localStorage.getItem(AUTO_KEY)||"false");
-  el("syllAutoAsk").onchange = ()=>localStorage.setItem(AUTO_KEY, JSON.stringify(el("syllAutoAsk").checked));
-
-  const orig_importZip = window.importZip;
-  window.importZip = async function(blob){
-    const out = await orig_importZip(blob);
-    trySuggestAutoDetect();
-    return out;
-  };
-  const orig_importPdf = window.importPdf;
-  window.importPdf = async function(file, originPath=""){
-    const out = await orig_importPdf(file, originPath);
-    trySuggestAutoDetect();
-    return out;
-  };
-
-  function trySuggestAutoDetect(){
-    const want = JSON.parse(localStorage.getItem(AUTO_KEY)||"false");
-    if(!want) return;
-    const cls = (APP.collection||"").trim();
-    const have = SYLLABUS[cls];
-    const uniqueSubs = new Set(APP.docs.filter(d=>d.collection===APP.collection).map(d=>d.subject));
-    const weak = !have || Object.keys(have).length < Math.max(3, uniqueSubs.size/2);
-    if(weak){
-      const ok = confirm("Detected a new/partial collection. Do you want to import syllabus from a link now?");
-      if(ok){ document.querySelector('.tab[data-tab="syllabus"]').click(); }
-    }
-  }
-
-  function stripHtml(html){
-    try{
-      const doc = new DOMParser().parseFromString(html,"text/html");
-      return (doc.body?doc.body.innerText:html.replace(/<[^>]+>/g," ")).replace(/\s+/g," ").trim();
-    }catch{
-      return html.replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim();
-    }
-  }
-  function pretty(obj){ try{ return JSON.stringify(obj, null, 2); }catch{ return String(obj); } }
-
-  function parseSyllabusText(text, style="auto"){
-    const out = {};
-    const classes = ["CBSE Class 10","CBSE Class 11","CBSE Class 12","Class 10","Class 11","Class 12"];
-    let chosenClass = null;
-    for(const c of classes){
-      if(text.toLowerCase().includes(c.toLowerCase())){
-        chosenClass = c.startsWith("CBSE") ? c : ("CBSE " + c);
-        break;
-      }
-    }
-    if(!chosenClass) chosenClass = APP.collection || "CBSE Class 10";
-    out[chosenClass] = {};
-    const subjectNames = ["Mathematics","Maths","Science","Physics","Chemistry","Biology","History","Geography","Political Science","Economics","English","Hindi","Information Technology","Computer Science","Sociology","Accountancy","Business Studies"];
-    const lines = text.split(/[\r\n]+|\.\s+/).map(s=>s.trim()).filter(Boolean);
-    let currentSubject = null;
-    for(let raw of lines){
-      const s = raw.replace(/\s+/g," ").trim();
-      if(subjectNames.some(n => s.toLowerCase().startsWith(n.toLowerCase())) || /^[A-Za-z ]{3,}\s*:\s*$/.test(s)) {
-        const match = subjectNames.find(n => s.toLowerCase().startsWith(n.toLowerCase()));
-        currentSubject = normaliseSubject(match || s.replace(/\s*:\s*$/,""));
-        if(!out[chosenClass][currentSubject]) out[chosenClass][currentSubject] = [];
-        continue;
-      }
-      const chap = s.match(/(?:chapter|ch)\s*[-:]?\s*(\d{1,2})\s*[:.\-–]\s*(.+)$/i) ||
-                   s.match(/^(\d{1,2})\s*[).:\-–]\s*(.+)$/) ||
-                   s.match(/^[•\-–]\s*(.+)$/);
-      if(chap && currentSubject){
-        let title;
-        if(chap[1] && chap[2]) title = `Chapter ${Number(chap[1])} — ${chap[2].trim()}`;
-        else title = chap[1] ? chap[1].trim() : chap[0].replace(/^[-•–]\s*/,"").trim();
-        out[chosenClass][currentSubject].push(cleanTitle(title));
-      }
-    }
-    if(Object.keys(out[chosenClass]).length===0){
-      out[chosenClass] = {"General": ["Chapter 1 — Introduction"]};
-    }
-    return out;
-  }
-  function normaliseSubject(s){
-    const m = s.toLowerCase();
-    if(m.startsWith("math")) return "Mathematics";
-    if(m.startsWith("science")) return "Science";
-    if(m.startsWith("physics")) return "Physics";
-    if(m.startsWith("chem")) return "Chemistry";
-    if(m.startsWith("bio")) return "Biology";
-    if(m.startsWith("geo")) return "Geography";
-    if(m.includes("polit")) return "Political Science";
-    if(m.startsWith("eco")) return "Economics";
-    if(m.startsWith("hindi")) return "Hindi";
-    if(m.startsWith("english")) return "English";
-    if(m.includes("information") || m.includes("computer")) return "Information Technology";
-    return tc(s);
-  }
-  function cleanTitle(t){ return t.replace(/\s+/g," ").replace(/\s+[:\-–]\s+/g," — ").trim(); }
-
-  function mergeSyllabus(newMap){
-    for(const cls of Object.keys(newMap||{})){
-      if(!SYLLABUS[cls]) SYLLABUS[cls] = {};
-      for(const subj of Object.keys(newMap[cls]||{})){
-        const arr = Array.isArray(newMap[cls][subj]) ? newMap[cls][subj] : [];
-        const have = new Set((SYLLABUS[cls][subj]||[]).map(x=>String(x)));
-        const merged = (SYLLABUS[cls][subj]||[]).concat(arr.filter(x=>!have.has(String(x))));
-        SYLLABUS[cls][subj] = merged;
-      }
-    }
-  }
-})();
-</script>
-<!—Libraries for ZIP and PDF support 
-    <script src=https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js crossorigin=”anonymous”></script>
-    <script src=https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.min.js crossorigin=”anonymous”></script>
-
-    <!—Your main app logic 
-    <script src=”app.js”></script>
+  <!-- Main app (single include) -->
+  <script src="app.js"></script>
 </body>
 </html>
