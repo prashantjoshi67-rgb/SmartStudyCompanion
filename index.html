@@ -1,124 +1,308 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>SmartStudy Companion — General Edition</title>
-  <meta name="theme-color" content="#0f172a" />
-  <style>
-    :root { --bg:#0b1220; --panel:#111827; --ink:#e5e7eb; --dim:#9ca3af; --brand:#22c55e; }
-    html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Inter,sans-serif}
-    .wrap{max-width:1100px;margin:20px auto;padding:0 16px}
-    h1{font-weight:700;font-size:22px;margin:0 0 10px}
-    .row{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
-    .chip, button, select, input[type="text"]{
-      background:#0f172a;border:1px solid #334155;color:var(--ink);border-radius:10px;
-      padding:10px 12px;outline:none
+/* SmartStudy Companion – minimal working baseline
+   - Local-only processing
+   - Upload: PDF/TXT/HTML/Images or ZIP (auto-unpack)
+   - Simple subject/chapter heuristics
+   - Quick/Detailed summaries
+   - MCQ quiz generator
+   - Read aloud with Indian voices (en-IN / hi-IN / mr-IN)
+*/
+
+(() => {
+  // ---------- state ----------
+  const state = {
+    student: localStorage.getItem('ssc_student') || '',
+    collection: localStorage.getItem('ssc_collection') || 'CBSE Class 10',
+    voiceLang: localStorage.getItem('ssc_voice') || 'en-IN',
+    items: loadJSON('ssc_items', []), // [{id, title, subject, chapter, pages, text}]
+    voices: [],
+    selectionIndex: null, // selected row
+  };
+
+  // ---------- helpers ----------
+  function saveJSON(key, val) { localStorage.setItem(key, JSON.stringify(val)); }
+  function loadJSON(key, fallback) {
+    try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
+    catch { return fallback; }
+  }
+  const $ = sel => document.querySelector(sel);
+  function speak(text) {
+    if (!window.speechSynthesis) return alert('Speech Synthesis not supported in this browser.');
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = state.voiceLang;
+    // prefer an Indian voice
+    const match = state.voices.find(v => v.lang === state.voiceLang) ||
+                  state.voices.find(v => v.lang.startsWith(state.voiceLang.split('-')[0]));
+    if (match) u.voice = match;
+    speechSynthesis.cancel();
+    speechSynthesis.speak(u);
+  }
+
+  // very small heuristics for subject/chapter from text
+  function guessSubject(text) {
+    const s = text.toLowerCase();
+    if (/(physics|force|motion|electric|magnet)/.test(s)) return 'Science';
+    if (/(chemistry|acid|base|salt|metal|non-metal)/.test(s)) return 'Science';
+    if (/(biology|cell|life|reproduction|ecosystem)/.test(s)) return 'Science';
+    if (/(math|algebra|geometry|trigonometry|probability)/.test(s)) return 'Mathematics';
+    if (/(history|geography|civics|economics|polity|democracy)/.test(s)) return 'Social Science';
+    if (/(hindi|kavita|vyakaran|gadyansh)/.test(s)) return 'Hindi';
+    if (/(marathi|abhyaas|vyakaran|kavita)/.test(s)) return 'Marathi';
+    if (/(english|prose|poem|grammar|comprehension)/.test(s)) return 'English';
+    return 'General';
+  }
+  function guessChapter(text) {
+    const m = text.match(/\b(chapter|lesson|unit)\s*[:\-]?\s*(\d+)\b/i);
+    if (m) return `${m[1]} ${m[2]}`;
+    const h = text.match(/\n\s*([A-Z][^\n]{5,60})\n/); // first heading-like line
+    return h ? h[1].trim().slice(0, 70) : 'Overview';
+  }
+
+  function cleanText(t) {
+    return (t||'')
+      .replace(/\r/g,' ')
+      .replace(/\u00A0/g,' ')
+      .replace(/[ \t]+/g,' ')
+      .replace(/\n{2,}/g,'\n')
+      .trim();
+  }
+
+  // ---------- PDF/TXT/HTML extraction ----------
+  async function extractFromPDF(file) {
+    const buf = await file.arrayBuffer();
+    const doc = await pdfjsLib.getDocument({ data: buf }).promise;
+    let text = '';
+    for (let p=1; p<=doc.numPages; p++) {
+      const page = await doc.getPage(p);
+      const content = await page.getTextContent();
+      const line = content.items.map(it => it.str).join(' ');
+      text += line + '\n';
     }
-    .chip{opacity:.9}
-    button{cursor:pointer}
-    button.primary{background:var(--brand);border-color:var(--brand);color:#0b0f19;font-weight:700}
-    .panel{background:var(--panel);border:1px solid #1f2937;border-radius:16px;padding:14px;margin:14px 0}
-    .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
-    textarea{width:100%;min-height:180px;background:#0b1220;color:var(--ink);border:1px solid #334155;border-radius:12px;padding:12px}
-    table{width:100%;border-collapse:collapse;margin:8px 0 0}
-    th,td{border-bottom:1px solid #1f2937;padding:10px 8px;text-align:left;font-size:14px}
-    th{color:var(--dim);font-weight:600}
-    .hint{color:var(--dim);font-size:13px}
-    .pill{padding:2px 8px;border-radius:999px;font-size:12px;background:#0b1220;border:1px solid #334155;color:var(--dim)}
-    .right{margin-left:auto}
-    a{color:#93c5fd;text-decoration:none}
-    .badge{background:#fde68a;color:#1f2937;border-radius:8px;padding:4px 8px;font-size:12px;margin-left:6px}
-  </style>
-</head>
-<body>
-  <div class="wrap">
-    <h1>SmartStudy Companion <span class="badge">General</span></h1>
+    return { text: cleanText(text), pages: doc.numPages };
+  }
+  async function extractFromTXT(file) {
+    const text = await file.text();
+    return { text: cleanText(text), pages: Math.max(1, Math.ceil(text.length/1200)) };
+  }
+  async function extractFromHTML(file) {
+    const html = await file.text();
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    const text = cleanText(tmp.innerText || tmp.textContent || '');
+    return { text, pages: Math.max(1, Math.ceil(text.length/1600)) };
+  }
+  async function extractFromImage(file) {
+    // placeholder: real OCR would need an OCR library; store filename only
+    return { text: file.name.replace(/\.[^.]+$/,''), pages: 1 };
+  }
 
-    <!-- top controls -->
-    <div class="row">
-      <input id="studentName" class="chip" type="text" placeholder="Student name" style="min-width:220px">
-      <button id="saveName" class="chip">Save</button>
-
-      <select id="collection" class="chip">
-        <option>CBSE Class 10</option>
-        <option>CBSE Class 11</option>
-        <option>CBSE Class 12</option>
-        <option>Custom</option>
-      </select>
-      <button id="setCollection" class="chip">Set</button>
-
-      <select id="voiceSelect" class="chip">
-        <option value="en-IN">English (India)</option>
-        <option value="hi-IN">हिन्दी (Hindi)</option>
-        <option value="mr-IN">मराठी (Marathi)</option>
-      </select>
-      <button id="enableTTS" class="chip">Enable voice</button>
-      <span class="hint">All processing is local in your browser.</span>
-    </div>
-
-    <!-- library / upload -->
-    <div class="panel">
-      <div class="toolbar">
-        <strong>Load material</strong>
-        <span class="pill">PDF / TXT / HTML / PNG / JPG / ZIP</span>
-        <span class="right hint">ZIPs auto-unpack • up to ~500 MB (device/RAM permitting)</span>
-      </div>
-      <input id="fileInput" type="file" multiple class="chip"
-             accept=".pdf,.txt,.md,.html,.htm,.jpg,.jpeg,.png,.zip,application/pdf,application/zip" />
-      <div class="hint" style="margin-top:8px">
-        Tip: Clear subject/chapter names inside PDFs help auto-grouping (not mandatory).
-      </div>
-
-      <div id="libraryPanel" class="panel">
-        <div class="toolbar">
-          <strong>Current library</strong>
-          <span id="libCollection" class="pill">CBSE Class 10</span>
-          <button id="clearLib" class="chip right">Clear library</button>
-        </div>
-        <div class="hint">Select a row and use “Summaries” or “Quiz”.</div>
-        <table id="libTable">
-          <thead><tr><th>Subject</th><th>Chapter</th><th>Title</th><th>Pages</th></tr></thead>
-          <tbody id="libBody"></tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- actions -->
-    <div class="panel">
-      <div class="toolbar">
-        <button id="doSummaryQuick" class="primary">Summaries (Quick)</button>
-        <button id="doSummaryDetailed" class="">Summaries (Detailed)</button>
-        <button id="doQuiz" class="">Quiz (MCQ)</button>
-        <button id="readAloud" class="right">🔊 Read</button>
-        <button id="copyOut">📋 Copy</button>
-      </div>
-      <textarea id="outBox" placeholder="Summaries / Questions will appear here…"></textarea>
-    </div>
-
-    <div class="panel">
-      <div class="toolbar"><strong>Help</strong></div>
-      <div class="hint">
-        • Upload PDFs or a ZIP (auto-unpacks).<br/>
-        • App groups items into Subject/Chapter using simple heuristics + your collection choice.<br/>
-        • Nothing is uploaded to any server. Everything runs in your browser.
-      </div>
-    </div>
-  </div>
-
-  <!-- Libraries -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" crossorigin="anonymous"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.min.js" crossorigin="anonymous"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.worker.min.js" crossorigin="anonymous"></script>
-  <script>
-    // make sure pdf.js knows its worker
-    if (window.pdfjsLib && pdfjsLib.GlobalWorkerOptions) {
-      pdfjsLib.GlobalWorkerOptions.workerSrc =
-        "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.worker.min.js";
+  // ---------- ZIP handling ----------
+  async function handleZip(file) {
+    const zip = await JSZip.loadAsync(await file.arrayBuffer());
+    const adds = [];
+    for (const path in zip.files) {
+      const entry = zip.files[path];
+      if (entry.dir) continue;
+      const lower = path.toLowerCase();
+      const blob = await entry.async('blob');
+      const inner = new File([blob], path.split('/').pop(), { type: blob.type });
+      adds.push(await routeFile(inner));
     }
-  </script>
+    return adds.flat();
+  }
 
-  <!-- Main app (single include) -->
-  <script src="app.js"></script>
-</body>
-</html>
+  // route by type; returns array of items
+  async function routeFile(file) {
+    const name = file.name || 'file';
+    const lower = name.toLowerCase();
+    try {
+      if (lower.endsWith('.zip')) {
+        return await handleZip(file);
+      }
+      let info;
+      if (lower.endsWith('.pdf')) info = await extractFromPDF(file);
+      else if (/\.(txt|md)$/.test(lower)) info = await extractFromTXT(file);
+      else if (/\.(html|htm)$/.test(lower)) info = await extractFromHTML(file);
+      else if (/\.(png|jpg|jpeg)$/.test(lower)) info = await extractFromImage(file);
+      else return []; // skip unknowns
+
+      const subj = guessSubject(info.text);
+      const chap = guessChapter(info.text);
+      const item = {
+        id: crypto.randomUUID(),
+        title: name.replace(/\.[^.]+$/,''),
+        subject: subj,
+        chapter: chap,
+        pages: info.pages,
+        text: info.text.slice(0, 2_000_000) // safety cap
+      };
+      return [item];
+    } catch (e) {
+      console.error('Error reading', name, e);
+      return [];
+    }
+  }
+
+  // ---------- rendering ----------
+  function renderLib() {
+    $('#libCollection').textContent = state.collection;
+    const tbody = $('#libBody');
+    tbody.innerHTML = '';
+    state.items.forEach((it, idx) => {
+      const tr = document.createElement('tr');
+      if (idx === state.selectionIndex) tr.style.background = '#0c1322';
+      tr.innerHTML =
+        `<td>${it.subject}</td><td>${it.chapter}</td><td>${it.title}</td><td>${it.pages}</td>`;
+      tr.addEventListener('click', () => {
+        state.selectionIndex = (state.selectionIndex === idx ? null : idx);
+        renderLib();
+      });
+      tbody.appendChild(tr);
+    });
+  }
+
+  // ---------- summarizers ----------
+  function splitSentences(t) {
+    return t.replace(/\s+/g,' ')
+            .split(/(?<=[\.\?\!])\s+/)
+            .map(s => s.trim())
+            .filter(Boolean);
+  }
+  function summaryQuick(text) {
+    const sents = splitSentences(text);
+    const picks = [];
+    const kw = /(important|main|therefore|thus|because|consists|includes|causes?|effects?|definition|defined|mean|is called)/i;
+    for (const s of sents) if (kw.test(s)) picks.push('• '+s);
+    if (picks.length < 5) {
+      // fall back: take first N reasonable sentences
+      picks.push(...sents.slice(0, 5 - picks.length).map(s => '• '+s));
+    }
+    return picks.slice(0, 10).join('\n');
+  }
+  function summaryDetailed(text) {
+    const lines = text.split('\n');
+    const bullets = [];
+    for (const ln of lines) {
+      if (/^\s*[\-\*\u2022]/.test(ln)) bullets.push('• '+ln.replace(/^\s*[\-\*\u2022]\s*/,''));
+      else if (/^[A-Z][A-Za-z0-9\s]{4,60}$/.test(ln)) bullets.push('◼︎ '+ln.trim());
+    }
+    if (bullets.length < 8) bullets.push(...summaryQuick(text).split('\n'));
+    return bullets.slice(0, 24).join('\n');
+  }
+
+  // ---------- quiz ----------
+  function buildMCQ(text, n=6) {
+    const sents = splitSentences(text).filter(s => s.length > 40);
+    const qs = [];
+    for (const s of sents.slice(0, n*2)) {
+      const words = s.split(/\s+/);
+      const cand = words.filter(w => /^[A-Za-z][A-Za-z\-]{4,}$/.test(w));
+      if (cand.length < 3) continue;
+      const answer = cand[Math.floor(Math.random()*cand.length)];
+      const stem = s.replace(answer, '____');
+      // distractors
+      const bag = sents.join(' ').split(/\W+/).filter(x => x && x !== answer);
+      const uniq = Array.from(new Set(bag.filter(w => w.length>=4))).slice(0, 500);
+      const opt = [answer];
+      while (opt.length < 4 && uniq.length) {
+        const w = uniq[Math.floor(Math.random()*uniq.length)];
+        if (!opt.includes(w)) opt.push(w);
+      }
+      qs.push({ stem, options: shuffle(opt), answer });
+      if (qs.length >= n) break;
+    }
+    if (!qs.length) return 'Not enough material for MCQ. Try another file.';
+    return qs.map((q,i)=> {
+      const letters = ['A','B','C','D'];
+      const opts = q.options.map((o,j)=>`   ${letters[j]}. ${o}`).join('\n');
+      const ans = letters[q.options.indexOf(q.answer)];
+      return `${i+1}) ${q.stem}\n${opts}\n   Answer: ${ans}\n`;
+    }).join('\n');
+  }
+  function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=(Math.random()*(i+1))|0; [a[i],a[j]]=[a[j],a[i]] } return a }
+
+  // ---------- wire UI ----------
+  function wire() {
+    // initial
+    $('#studentName').value = state.student;
+    $('#libCollection').textContent = state.collection;
+    $('#voiceSelect').value = state.voiceLang;
+    renderLib();
+
+    $('#saveName').addEventListener('click', () => {
+      state.student = $('#studentName').value.trim();
+      localStorage.setItem('ssc_student', state.student);
+    });
+    $('#setCollection').addEventListener('click', () => {
+      state.collection = $('#collection').value;
+      localStorage.setItem('ssc_collection', state.collection);
+      renderLib();
+    });
+    $('#voiceSelect').addEventListener('change', () => {
+      state.voiceLang = $('#voiceSelect').value;
+      localStorage.setItem('ssc_voice', state.voiceLang);
+    });
+    $('#enableTTS').addEventListener('click', () => {
+      speak(greetText()); // warm up
+    });
+
+    // uploads
+    $('#fileInput').addEventListener('change', async (ev) => {
+      const files = Array.from(ev.target.files || []);
+      if (!files.length) return;
+      // process sequentially to control memory
+      for (const f of files) {
+        const newItems = await routeFile(f);
+        if (newItems && newItems.length) state.items.push(...newItems);
+        renderLib();
+        saveJSON('ssc_items', state.items);
+      }
+      $('#fileInput').value = '';
+    });
+
+    $('#clearLib').addEventListener('click', () => {
+      if (!confirm('Clear all loaded items?')) return;
+      state.items = []; saveJSON('ssc_items', state.items); renderLib();
+    });
+
+    // actions
+    $('#doSummaryQuick').addEventListener('click', () => runOnSelection(t => summaryQuick(t)));
+    $('#doSummaryDetailed').addEventListener('click', () => runOnSelection(t => summaryDetailed(t)));
+    $('#doQuiz').addEventListener('click', () => runOnSelection(t => buildMCQ(t, 8)));
+    $('#readAloud').addEventListener('click', () => speak($('#outBox').value.slice(0, 1800)));
+    $('#copyOut').addEventListener('click', async () => {
+      await navigator.clipboard.writeText($('#outBox').value || '');
+    });
+
+    // voices
+    if ('speechSynthesis' in window) {
+      const refreshVoices = () => {
+        state.voices = window.speechSynthesis.getVoices();
+      };
+      refreshVoices();
+      window.speechSynthesis.onvoiceschanged = refreshVoices;
+      // auto-welcome
+      setTimeout(() => speak(greetText()), 600);
+    }
+  }
+
+  function runOnSelection(fn) {
+    let target = null;
+    if (state.selectionIndex != null) target = state.items[state.selectionIndex];
+    else if (state.items.length) target = state.items[0];
+    if (!target) { alert('Add files first, then click a row to select it.'); return; }
+    const out = fn(target.text);
+    $('#outBox').value = out;
+  }
+
+  function greetText() {
+    const n = state.student || 'Student';
+    switch (state.voiceLang) {
+      case 'hi-IN': return `नमस्ते ${n}! स्मार्ट स्टडी कम्पैनियन में आपका स्वागत है। चलिए शुरू करते हैं!`;
+      case 'mr-IN': return `नमस्कार ${n}! स्मार्ट स्टडी कम्पॅनियन मध्ये तुमचे स्वागत आहे. सुरू करू या!`;
+      default:      return `Hello ${n}! Welcome to SmartStudy Companion. Let's begin.`;
+    }
+  }
+
+  // boot
+  wire();
+})();
