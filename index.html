@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Smart Study Companion</title>
+
+<!-- pdf.js CDN (text extraction in browser) -->
+<link rel="preconnect" href="https://cdnjs.cloudflare.com">
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+<style>
+  :root{
+    --bg:#0b1220; --card:#151c2f; --ink:#e8eefc; --accent:#6ad1ff; --good:#2ecc71; --bad:#ff5c5c; --hint:#f7d774;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+  header{padding:16px 18px;display:flex;gap:12px;align-items:center;border-bottom:1px solid #27324a}
+  header h1{font-size:18px;margin:0}
+  header .spacer{flex:1}
+  .wrap{max-width:1200px;margin:0 auto;padding:16px;display:grid;grid-template-columns:310px 1fr;gap:16px}
+  .card{background:var(--card);border:1px solid #26324a;border-radius:16px;padding:16px}
+  .card h2{margin:0 0 12px 0;font-size:16px;color:#cfe3ff}
+  .muted{opacity:.85}
+  input[type="text"], select, button, .chip{background:#0e1627;color:var(--ink);border:1px solid #26324a;border-radius:10px;padding:10px 12px;font:inherit}
+  button{cursor:pointer}
+  button.primary{background:var(--accent);color:#001422;border-color:#3aa6d0;font-weight:600}
+  button.good{background:var(--good);border-color:#1b9e56;color:#00150b}
+  button.bad{background:var(--bad);border-color:#d93636;color:#160000}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{padding:6px 10px;font-size:13px}
+  .list{max-height:220px;overflow:auto;border:1px dashed #2b3958;border-radius:10px;padding:8px}
+  .row{display:flex;align-items:center;gap:8px;padding:6px 4px;border-radius:8px}
+  .row:hover{background:#0e1627}
+  .pill{padding:3px 8px;border-radius:999px;background:#0e1627;border:1px solid #26324a;font-size:12px}
+  .badge{background:#15243f;border:1px solid #2d4474;border-radius:10px;padding:8px}
+  .section-title{margin:6px 0 10px;font-size:14px;color:#a9c5ff}
+  .summary{white-space:pre-wrap;line-height:1.55}
+  .warning{background:#2d1a1a;border:1px solid #5c2d2d;color:#ffd2d2;padding:10px;border-radius:10px}
+  .kbc{font-weight:700;letter-spacing:.3px}
+  .kbc .question{font-size:20px}
+  .kbc .choices button{width:100%;text-align:left}
+  .right{color:var(--good)} .wrong{color:var(--bad)}
+  .hint{background:#2b2612;border:1px solid #6a5710;color:#ffec9f;border-radius:10px;padding:8px}
+  .scorebar{display:flex;gap:10px;align-items:center}
+  progress{width:140px;height:10px;border:none;border-radius:8px;overflow:hidden}
+  progress::-webkit-progress-value{background:var(--good)}
+  progress::-moz-progress-bar{background:var(--good)}
+  .footer{padding:10px 16px;color:#98b6ff6f;font-size:12px;text-align:center;border-top:1px solid #27324a}
+  .small{font-size:12px;color:#a7bee6}
+  .hide{display:none}
+</style>
+</head>
+<body>
+<header>
+  <h1>📚 Smart Study Companion</h1>
+  <div class="spacer"></div>
+  <label class="small">KBC Mode
+    <input id="kbcToggle" type="checkbox" />
+  </label>
+  <button id="ttsToggle" class="chip">🔊 Voice</button>
+  <button id="recToggle" class="chip">🎙️ Voice Answer</button>
+</header>
+
+<div class="wrap">
+  <!-- Left: controls -->
+  <aside class="card">
+    <h2>Start · Load material</h2>
+    <div class="section-title">1) Student name</div>
+    <div class="grid2">
+      <input id="studentName" placeholder="Your name" />
+      <button id="saveName" class="primary">Save</button>
+    </div>
+    <p class="small muted" id="hello"></p>
+
+    <div class="section-title">2) Add PDFs (any subject)</div>
+    <input id="pdfInput" type="file" multiple accept="application/pdf" />
+    <p class="small muted">All processing is local in your browser. Large files take longer the first time.</p>
+
+    <div class="section-title">Subjects detected</div>
+    <div id="subjectChips" class="chips"></div>
+
+    <div class="section-title">Chapters</div>
+    <div id="chapterList" class="list small"></div>
+
+    <div class="section-title">Quiz settings</div>
+    <div class="grid2">
+      <select id="quizType">
+        <option value="mcq">MCQ (4 choices)</option>
+        <option value="short">Short answer</option>
+        <option value="desc">Descriptive</option>
+      </select>
+      <select id="timerSel">
+        <option value="0">No timer</option>
+        <option value="30">30 sec</option>
+        <option value="60">1 min</option>
+        <option value="180">3 min</option>
+      </select>
+    </div>
+    <div class="grid2" style="margin-top:8px">
+      <button id="makeSummary" class="primary">Create Summaries</button>
+      <button id="startQuiz" class="good">Start Quiz</button>
+    </div>
+
+    <div class="section-title">Targets</div>
+    <div class="grid2">
+      <input id="dailyTarget" type="number" min="1" placeholder="Q/day" />
+      <button id="saveTarget" class="chip">Set</button>
+    </div>
+    <div id="badges" style="margin-top:10px;display:flex;flex-wrap:wrap;gap:8px"></div>
+  </aside>
+
+  <!-- Right: content -->
+  <main class="card">
+    <h2 id="panelTitle">Dashboard</h2>
+
+    <div id="dashboard">
+      <div class="scorebar">
+        <span>Score: <b id="score">0</b></span>
+        <progress id="scoreProg" value="0" max="10"></progress>
+        <span class="small">Streak: <b id="streak">0</b></span>
+      </div>
+      <div style="margin-top:10px" class="small muted">
+        Tips: Load some PDFs → pick subject/chapters → “Create Summaries” or “Start Quiz”. Use 🔊 to hear questions, 🎙️ to speak answers.
+      </div>
+      <div id="warnings" style="margin-top:10px"></div>
+    </div>
+
+    <section id="summaries" class="hide">
+      <h3 class="section-title">Quick Summary</h3>
+      <div id="quickSummary" class="summary"></div>
+      <h3 class="section-title" style="margin-top:16px">Detailed Summary</h3>
+      <div id="detailedSummary" class="summary"></div>
+    </section>
+
+    <section id="quiz" class="hide">
+      <div id="timer" class="pill"></div>
+      <div id="qText" class="question" style="font-size:18px;margin:8px 0 10px"></div>
+      <div id="choices" class="choices" style="display:grid;gap:8px"></div>
+      <input id="freeAns" class="hide" placeholder="Type your answer…" />
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button id="submitAns" class="primary">Submit</button>
+        <button id="hintBtn" class="chip">Hint</button>
+        <button id="nextBtn" class="chip">Skip/Next</button>
+      </div>
+      <div id="feedback" style="margin-top:8px"></div>
+    </section>
+  </main>
+</div>
+
+<div class="footer">Made with ❤️ by Prashant for Tanaya · Works offline after first load · English/Hindi voice available</div>
+
+<script>
+/* ---------- tiny helpers ---------- */
+const $ = sel => document.querySelector(sel);
+const say = (t) => {
+  if(!window._tts) return;
+  const u = new SpeechSynthesisUtterance(t);
+  u.lang = window._voiceLang || "en-IN";
+  speechSynthesis.speak(u);
+};
+const stopSay = () => speechSynthesis.cancel();
+const clean = s => (s||"").replace(/\s+/g," ").trim();
+const sentences = txt => clean(txt).split(/(?<=[.!?])\s+/).filter(Boolean);
+const words = s => clean(s.toLowerCase()).replace(/[^a-zA-Z0-9\s]/g,"").split(/\s+/).filter(Boolean);
+const stop = new Set("the a an and of in to is are was were be been for with on by from as at that this those these it its into your you we us our i he she they them his her their".split(" "));
+const uniq = arr => [...new Set(arr)];
+
+/* ---------- storage ---------- */
+const store = {
+  save(k,v){ localStorage.setItem(k, JSON.stringify(v)); },
+  get(k, def=null){ try{ return JSON.parse(localStorage.getItem(k)) ?? def }catch{ return def } }
+};
+
+/* ---------- UI state ---------- */
+let DOCS = [];       // [{subject, chapter, text}]
+let FILTER = {subjects:new Set(), chapters:new Set()};
+let QUIZ = {items:[], idx:0, score:0, streak:0, timer:0, t:null, type:"mcq", kbc:false, lastHint:""};
+let NAME = store.get("ssc_name","");
+
+/* ---------- init ---------- */
+window.addEventListener("DOMContentLoaded", () => {
+  if(NAME){ $("#studentName").value = NAME; $("#hello").textContent = `Hi ${NAME}!`; }
+  $("#saveName").onclick = () => { NAME = clean($("#studentName").value)||"Learner"; store.save("ssc_name", NAME); $("#hello").textContent = `Welcome, ${NAME}.`; };
+
+  $("#pdfInput").addEventListener("change", handleFiles);
+  $("#makeSummary").onclick = makeSummaries;
+  $("#startQuiz").onclick = startQuiz;
+
+  $("#quizType").onchange = e => QUIZ.type = e.target.value;
+  $("#timerSel").onchange = e => QUIZ.timer = +e.target.value;
+
+  $("#hintBtn").onclick = () => showHint();
+  $("#submitAns").onclick = submitAnswer;
+  $("#nextBtn").onclick = nextQuestion;
+
+  // voice toggles
+  $("#ttsToggle").onclick = () => {
+    window._tts = !window._tts;
+    $("#ttsToggle").textContent = window._tts ? "🔊 Voice (ON)" : "🔇 Voice (OFF)";
+    if(!window._voiceLang){ window._voiceLang = "en-IN"; }
+  };
+  $("#recToggle").onclick = toggleRec;
+
+  $("#kbcToggle").onchange = e => {
+    QUIZ.kbc = e.target.checked;
+    document.body.classList.toggle("kbc", QUIZ.kbc);
+  };
+
+  // gamification
+  $("#saveTarget").onclick = () => { store.save("ssc_target", +($("#dailyTarget").value||0)); renderBadges(); };
+  $("#dailyTarget").value = store.get("ssc_target", 20);
+  renderBadges();
+});
+
+/* ---------- load PDFs ---------- */
+async function handleFiles(ev){
+  const files = [...ev.target.files];
+  if(!files.length) return;
+
+  $("#warnings").innerHTML = "";
+
+  for(const f of files){
+    const subj = guessSubject(f.name);
+    const chap = guessChapter(f.name);
+    const text = await extractTextFromPDF(f).catch(()=> "");
+    if(!text){ warn(`Couldn't read: ${f.name}`); continue; }
+    DOCS.push({subject:subj, chapter:chap, text});
+  }
+  renderSubjects();
+  renderChapters();
+  info(`Loaded ${files.length} file(s). Subjects found: ${uniq(DOCS.map(d=>d.subject)).join(", ")}`);
+}
+
+function guessSubject(name){
+  const n = name.toLowerCase();
+  if(n.includes("math")) return "Mathematics";
+  if(n.includes("sci")) return "Science";
+  if(n.includes("chem")) return "Science";
+  if(n.includes("bio")) return "Science";
+  if(n.includes("phys")) return "Science";
+  if(n.includes("eng") || n.includes("english")) return "English";
+  if(n.includes("geo")) return "Geography";
+  if(n.includes("hist")) return "History";
+  if(n.includes("pol") || n.includes("civics")) return "Political Science";
+  if(n.includes("it") || n.includes("info")) return "Information Technology";
+  if(n.includes("hindi")) return "Hindi";
+  return "General";
+}
+function guessChapter(name){
+  return name.replace(/\.(pdf)$/i,"").replace(/_/g," ").replace(/\s+/g," ").trim();
+}
+
+async function extractTextFromPDF(file){
+  const ab = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({data:ab}).promise;
+  let txt = "";
+  const maxPages = Math.min(pdf.numPages, 25); // cap for speed
+  for(let p=1;p<=maxPages;p++){
+    const page = await pdf.getPage(p);
+    const content = await page.getTextContent();
+    const pageText = content.items.map(it=>it.str).join(" ");
+    txt += "\n" + pageText;
+  }
+  return clean(txt);
+}
+
+/* ---------- render filters ---------- */
+function renderSubjects(){
+  const box = $("#subjectChips"); box.innerHTML="";
+  const subs = uniq(DOCS.map(d=>d.subject)).sort();
+  subs.forEach(s=>{
+    const b = document.createElement("button");
+    b.className="chip";
+    b.textContent=s;
+    b.onclick=()=>{
+      if(FILTER.subjects.has(s)) FILTER.subjects.delete(s); else FILTER.subjects.add(s);
+      b.classList.toggle("primary");
+      renderChapters();
+    };
+    box.appendChild(b);
+  });
+}
+
+function renderChapters(){
+  const list=$("#chapterList"); list.innerHTML="";
+  const filtered = DOCS.filter(d => FILTER.subjects.size ? FILTER.subjects.has(d.subject) : true );
+  filtered.forEach(d=>{
+    const r = document.createElement("div");
+    r.className="row";
+    const cb = document.createElement("input"); cb.type="checkbox";
+    cb.onchange = () => { cb.checked ? FILTER.chapters.add(d.chapter) : FILTER.chapters.delete(d.chapter); };
+    const t = document.createElement("div"); t.textContent = `${d.subject} · ${d.chapter}`;
+    r.append(cb,t);
+    list.appendChild(r);
+  });
+}
+
+/* ---------- summaries ---------- */
+function makeSummaries(){
+  const docs = getFilteredDocs();
+  if(!docs.length){ warn("Select at least one chapter."); return; }
+  const text = docs.map(d=>d.text).join("\n");
+  const quick = summarize(text, 5);
+  const detailed = summarize(text, 15);
+  $("#quickSummary").textContent = quick;
+  $("#detailedSummary").textContent = detailed;
+  $("#panelTitle").textContent = "Summaries";
+  show("summaries"); hide("quiz");
+}
+
+function summarize(text, n){
+  const sents = sentences(text).slice(0,1200); // cap for speed
+  const freq = {};
+  for(const s of sents){
+    for(const w of words(s)){ if(stop.has(w)) continue; freq[w]=(freq[w]||0)+1; }
+  }
+  const scored = sents.map(s=>{
+    const sc = words(s).reduce((a,w)=> a + (freq[w]||0), 0);
+    return {s, sc};
+  }).sort((a,b)=> b.sc-a.sc);
+  return scored.slice(0,n).map(x=>x.s).join(" ");
+}
+
+/* ---------- quiz ---------- */
+function startQuiz(){
+  const docs = getFilteredDocs();
+  if(!docs.length){ warn("Select at least one chapter to quiz."); return; }
+  QUIZ.items = buildQuestions(docs);
+  QUIZ.idx = 0; QUIZ.score = 0; QUIZ.streak = 0;
+  updateScore();
+  $("#panelTitle").textContent = "Quiz";
+  show("quiz"); hide("summaries");
+  ask();
+}
+
+function buildQuestions(docs){
+  const items = [];
+  for(const d of docs){
+    const sents = sentences(d.text).filter(s=>s.split(" ").length>7 && s.length<240).slice(0,80);
+    // MCQ
+    for(const s of sents.slice(0,6)){
+      const kw = pickKeyword(s);
+      if(!kw) continue;
+      const opts = shuffle([kw, ...distractors(kw)]).slice(0,4);
+      items.push({type:"mcq", q:s.replace(kw,"_____"), answer:kw, options:opts, hint:contextHint(d.text, kw), ref:`${d.subject} › ${d.chapter}`});
+    }
+    // Short
+    for(const s of sents.slice(6,9)){
+      const kw = pickKeyword(s); if(!kw) continue;
+      items.push({type:"short", q:`Answer in one word/phrase: ${s.replace(kw,"_____")}`, answer:kw, hint:contextHint(d.text, kw), ref:`${d.subject} › ${d.chapter}`});
+    }
+    // Descriptive
+    const big = sentences(d.text).slice(0,200).join(" ");
+    if(big.length>400){
+      const topic = pickKeyword(big) || d.chapter;
+      items.push({type:"desc", q:`Briefly explain: ${topic}`, answer:topic, hint:contextHint(d.text, topic), ref:`${d.subject} › ${d.chapter}`});
+    }
+  }
+  return shuffle(items).slice(0,60);
+}
+
+function pickKeyword(s){
+  const ws = words(s).filter(w=>!stop.has(w)&&w.length>3);
+  ws.sort((a,b)=>b.length-a.length);
+  return ws[0]||"";
+}
+function distractors(ans){
+  const pool = "process energy system matter value power growth cycle motion policy reform market society river climate device memory network gravity cell enzyme treaty empire theorem poetry syntax budget".split(" ");
+  const dif = pool.filter(w=>w.toLowerCase()!=ans.toLowerCase());
+  return shuffle(dif).slice(3);
+}
+function contextHint(text, kw){
+  const s = sentences(text).find(x=>x.toLowerCase().includes((kw||"").toLowerCase()));
+  return s ? s : "Think of the key term in that chapter.";
+}
+
+function ask(){
+  clearTimer();
+  const it = QUIZ.items[QUIZ.idx];
+  if(!it){ info("Quiz over! Great job."); show("dashboard"); hide("quiz"); return; }
+
+  $("#qText").innerHTML = `<div class="small muted">${it.ref}</div><div class="${QUIZ.kbc?'kbc':''}">${it.q}</div>`;
+  $("#feedback").textContent = "";
+  $("#freeAns").classList.add("hide");
+  $("#choices").innerHTML = "";
+
+  if(QUIZ.type==="mcq" || (QUIZ.type!=="mcq" && it.type==="mcq")){
+    it.type="mcq";
+    const box = $("#choices");
+    it.options.forEach((opt,i)=>{
+      const b = document.createElement("button");
+      b.textContent = (QUIZ.kbc? (["A","B","C","D"][i]+". ") : "") + opt;
+      b.onclick = ()=> submitAnswer(opt);
+      box.appendChild(b);
+    });
+  }else{
+    $("#freeAns").classList.remove("hide");
+    $("#choices").innerHTML="";
+  }
+
+  // voice ask
+  if(window._tts) say(`Question: ${stripTags(it.q)}`);
+
+  // timer
+  if(QUIZ.timer>0){
+    let left = QUIZ.timer;
+    $("#timer").textContent = `⏱ ${left}s`;
+    const t = setInterval(()=>{
+      left--; $("#timer").textContent = `⏱ ${left}s`;
+      if(left<=0){ clearInterval(t); $("#timer").textContent="⏱ Time up"; result(false, it); nextQuestion(); }
+    }, 1000);
+    QUIZ.t = t;
+  }else $("#timer").textContent="";
+}
+
+function submitAnswer(choice){
+  const it = QUIZ.items[QUIZ.idx];
+  const user = typeof choice==="string" ? choice : $("#freeAns").value;
+  const ok = checkAnswer(it, user||"");
+  result(ok, it, user);
+  if(ok){ QUIZ.score++; QUIZ.streak++; updateScore(); }
+  else { QUIZ.streak = 0; updateScore(); }
+}
+
+function checkAnswer(it, user){
+  const targ = (it.answer||"").toLowerCase().trim();
+  const ans = (user||"").toLowerCase().trim();
+  if(!ans) return false;
+  if(it.type==="mcq") return ans===targ;
+  // short/descriptive: fuzzy include
+  if(ans.includes(targ) || targ.includes(ans)) return true;
+  const jw = jaccard(words(ans), words(targ));
+  return jw>=0.5;
+}
+function jaccard(a,b){ const A=new Set(a), B=new Set(b); const I=[...A].filter(x=>B.has(x)).length; const U=new Set([...a,...b]).size; return U?I/U:0; }
+
+function showHint(){
+  const it = QUIZ.items[QUIZ.idx];
+  const h = it.hint || "No hint available.";
+  QUIZ.lastHint = h;
+  $("#feedback").innerHTML = `<div class="hint">💡 Hint: ${h}</div>`;
+  if(window._tts) say("Here is a hint.");
+}
+
+function result(ok, it, user){
+  clearTimer();
+  const msg = ok ? `<span class="right">✅ Correct!</span>` :
+    `<span class="wrong">❌ Wrong.</span> <div class="small">Correct: <b>${it.answer}</b></div>`;
+  $("#feedback").innerHTML = msg;
+  if(window._tts) say(ok? "Correct answer!" : `Wrong answer. The correct answer is ${it.answer}`);
+}
+
+function nextQuestion(){
+  QUIZ.idx++;
+  ask();
+}
+
+function clearTimer(){ if(QUIZ.t){ clearInterval(QUIZ.t); QUIZ.t=null; } }
+
+function updateScore(){
+  $("#score").textContent = QUIZ.score;
+  $("#streak").textContent = QUIZ.streak;
+  $("#scoreProg").value = (QUIZ.score % 10);
+  maybeBadge();
+}
+
+/* ---------- voice recognition (answers) ---------- */
+let recog=null, recOn=false;
+function toggleRec(){
+  if(!("webkitSpeechRecognition" in window)){ warn("Voice input not supported in this browser. Try Chrome."); return; }
+  if(!recog){
+    recog = new webkitSpeechRecognition();
+    recog.lang = "en-IN";
+    recog.interimResults = false; recog.continuous = false;
+    recog.onresult = (e)=>{ const t = e.results[0][0].transcript; $("#freeAns").value = t; submitAnswer(t); };
+    recog.onerror = ()=>{};
+  }
+  recOn = !recOn;
+  $("#recToggle").textContent = recOn? "🎙️ Voice Answer (ON)" : "🎙️ Voice Answer";
+  if(recOn) recog.start(); else recog.stop();
+}
+
+/* ---------- utils UI ---------- */
+function getFilteredDocs(){
+  const bySub = FILTER.subjects.size ? DOCS.filter(d=>FILTER.subjects.has(d.subject)) : DOCS;
+  const byChap = FILTER.chapters.size ? bySub.filter(d=>FILTER.chapters.has(d.chapter)) : bySub;
+  return byChap;
+}
+function show(id){ $("#dashboard").classList.add("hide"); $(`#${id}`).classList.remove("hide"); }
+function hide(id){ $(`#${id}`).classList.add("hide"); }
+function info(msg){ $("#warnings").innerHTML = `<div class="badge">${msg}</div>`; }
+function warn(msg){ $("#warnings").innerHTML = `<div class="warning">${msg}</div>`; }
+function stripTags(s){ const div=document.createElement("div"); div.innerHTML=s; return div.textContent||div.innerText||""; }
+
+/* ---------- badges & targets ---------- */
+function renderBadges(){
+  const b = $("#badges"); b.innerHTML="";
+  const t = store.get("ssc_target",20);
+  const sc = QUIZ.score;
+  const streak = QUIZ.streak;
+  const add = (txt)=>{ const x=document.createElement("div"); x.className="badge"; x.textContent=txt; b.appendChild(x); };
+  add(`🎯 Daily target: ${t} Q`);
+  if(sc>=10) add("🏅 Bronze: 10+ correct");
+  if(sc>=25) add("🥈 Silver: 25+ correct");
+  if(sc>=50) add("🥇 Gold: 50+ correct");
+  if(streak>=5) add("🔥 Streak 5");
+  if(streak>=10) add("⚡ Streak 10");
+}
+function maybeBadge(){ renderBadges(); }
+
+</script>
+</body>
+  </html>
