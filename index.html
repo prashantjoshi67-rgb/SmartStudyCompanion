@@ -1,634 +1,101 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Smart Study Companion</title>
-<meta name="description" content="Smart Study Companion — browser-based study helper (local processing)" />
-<style>
-/* ---------- Inlined style.css (cleaned) ---------- */
-:root{
-  --bg:#0f1720; --card:#111827; --muted:#9aa4b2;
-  --accent:#3ad29f; --btn:#2b3742; --gold:#d48806;
-  --radius:14px; --shadow:0 8px 24px rgba(0,0,0,.35);
-  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
-  --sans: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, "Apple Color Emoji","Segoe UI Emoji";
-}
-*{box-sizing:border-box}
-html,body{height:100%}
-body{
-  margin:0; background:var(--bg); color:var(--text, #e6eef3); font-family:var(--sans);
-  -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
-}
-.wrapper{max-width:1080px;margin:28px auto;padding:0 16px}
-.header{display:flex;align-items:center;gap:12px;margin-bottom:18px}
-.badge{background:#09111a;border:1px solid #202a36;color:var(--muted);
-  padding:4px 10px;border-radius:999px;font-size:12px}
-.card{background:var(--card);border:1px solid #273243;border-radius:var(--radius);
-  box-shadow:var(--shadow); overflow:hidden; margin:16px 0;}
-.card header{padding:14px 18px;border-bottom:1px solid #273243;font-weight:600;}
-.card .body{padding:18px}
-.row{display:grid;gap:12px}
-@media(min-width:760px){ .row{grid-template-columns:1.2fr .8fr} }
-.input, select, .btn, .tag{
-  border-radius:10px;border:1px solid #2d384a;background:#0b1220;
-  color:var(--text); padding:12px 14px; font-size:15px;
-}
-.input:focus, select:focus{outline:2px solid #334760;border-color:#3a4e67}
-.btn{cursor:pointer;display:inline-flex;align-items:center;gap:8px;font-weight:600}
-.btn.pri{background:var(--accent);border-color:#238636}
-.btn.ghost{background:transparent}
-.btn.warn{background:var(--gold);color:#1b1b1b;border-color:#d4b657}
-.btn.danger{background:#ff616e;border-color:#d34f59}
-.btn:disabled{opacity:.6;cursor:not-allowed}
-.kv{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
-.kv label{min-width:140px;color:var(--muted)}
-.help{color:var(--muted);font-size:13px}
-.list{display:flex;flex-wrap:wrap;gap:8px}
-.tag{font-size:13px;background:#101720;border-color:#283449}
-.table{width:100%;border-collapse:collapse;margin-top:8px;font-size:14px}
-.table th,.table td{border-bottom:1px solid #273243;padding:10px 8px;text-align:left}
-.table th{color:var(--muted);font-weight:600}
-.footer{margin:24px 0;color:var(--muted);font-size:13px;text-align:center}
-.toast{position:fixed;right:14px;bottom:14px; background:#111923;color:var(--text);
-  border:1px solid #293548; padding:12px 14px;border-radius:10px;box-shadow:var(--shadow); display:none; z-index:99;}
-.toast.show{display:block;animation:pop .18s ease-out}
-@keyframes pop{from{transform:translateY(6px);opacity:.6}to{transform:translateY(0);opacity:1}}
-.progress{height:8px;background:#0e1622;border-radius:999px;overflow:hidden}
-.progress > span{display:block;height:100%;background:linear-gradient(90deg,#2ea043,#58a6ff);width:0%}
-.small{font-size:12px;color:var(--muted)}
-hr{border:none;border-top:1px solid #273243;margin:12px 0}
-#studentName, #targetCount, #libraryName{width:100%}
-.hidden{display:none !important}
-/* small layout helpers */
-.container{max-width:980px;margin:12px auto;padding:12px}
-.header-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-.controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.panel{margin-top:12px;padding:12px;background:linear-gradient(#0b1116,#0f151b);border-radius:10px;border:1px solid #222a33}
-.file-list{min-height:120px;border:1px dashed #24303b;border-radius:8px;padding:12px;background:transparent;color:#cbd6e3}
-.output{white-space:pre-wrap; font-family:inherit; color:#eaf4ff; padding:10px; background:rgba(255,255,255,0.02); border-radius:8px}
-.tab{background:transparent;border:1px solid transparent;padding:8px 10px;border-radius:8px;color:var(--muted)}
-.tab.active{border-color:#2c3946;background:#081017;color:#dbefff}
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Smart Study Companion</title>
+
+  <!-- styles -->
+  <link rel="stylesheet" href="style.css">
+
+  <!-- PDF.js and JSZip from CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.worker.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" crossorigin="anonymous"></script>
+
+  <meta name="description" content="Smart Study Companion - local pdf/zip processing, summaries & quizzes" />
 </head>
 <body>
   <div class="container">
-    <div class="header-row">
-      <h1 style="margin:0">Smart Study Companion</h1>
-      <div style="flex:1"></div>
-      <div class="small">Offline-first • Local processing</div>
-    </div>
+    <h1>Smart Study Companion</h1>
+    <div class="card">
+      <label for="studentName">Name</label>
+      <input id="studentName" type="text" placeholder="Enter name">
+      <button id="saveName" class="btn btn-primary">Save</button>
 
-    <div class="panel">
-      <div class="controls">
-        <input id="studentName" type="text" placeholder="Student name" />
-        <button id="saveName" class="btn pri">Save</button>
-
-        <label class="small" style="margin-left:6px">Voice</label>
-        <select id="voiceSelect" class="input small">
+      <div class="row">
+        <label for="voiceSelect">Voice</label>
+        <select id="voiceSelect">
           <option value="en-IN">English (India)</option>
-          <option value="hi-IN">हिन्दी</option>
-          <option value="mr-IN">मराठी</option>
+          <option value="hi-IN">Hindi (India)</option>
+          <option value="en-US">English (US)</option>
         </select>
+        <button id="enableVoice" class="btn">Enable</button>
+      </div>
 
-        <label class="btn" style="padding:8px 12px;">
-          <input id="fileInput" type="file" multiple accept=".pdf,.zip,.txt,.html,.htm,.jpg,.jpeg,.png" style="display:none" />
-          Choose files
-        </label>
-
-        <button id="processFiles" class="btn pri">Process</button>
-
-        <div style="margin-left:auto" class="small muted">Auto-unpacks ZIP • Max single upload ~500MB (device dependent)</div>
+      <div class="row">
+        <input id="fileInput" type="file" multiple />
+        <button id="processBtn" class="btn btn-primary">Process</button>
+        <div class="note">Accepts PDF, TXT, HTML, JPG/PNG inside ZIP (auto-unpacks). Max single upload ~500MB (device dependent).</div>
       </div>
     </div>
 
-    <div style="margin-top:12px" class="panel">
-      <div class="controls" id="tabsRow">
-        <button data-tab="library" class="tab active">Library</button>
-        <button data-tab="summaries" class="tab">Summaries</button>
-        <button data-tab="quiz" class="tab">Quiz</button>
-        <button data-tab="manage" class="tab">Manage</button>
-        <button data-tab="syllabus" class="tab">Syllabus</button>
-        <button data-tab="feedback" class="tab">Feedback</button>
-        <button data-tab="help" class="tab">Help</button>
-      </div>
+    <nav class="tabs">
+      <button class="tab active" data-tab="library">Library</button>
+      <button class="tab" data-tab="summaries">Summaries</button>
+      <button class="tab" data-tab="quiz">Quiz</button>
+      <button class="tab" data-tab="manage">Manage</button>
+      <button class="tab" data-tab="help">Help</button>
+    </nav>
 
-      <div id="library" class="panel-inner">
-        <h3 style="margin:6px 0">Current library</h3>
-        <div id="libraryList" class="file-list">Add files to see them here.</div>
-      </div>
+    <section id="library" class="panel active">
+      <h2>Current library</h2>
+      <div id="fileList" class="list">No files yet.</div>
+    </section>
 
-      <div id="summaries" class="panel-inner hidden">
-        <h3>Summaries</h3>
-        <div class="controls" style="margin-bottom:10px">
-          <button id="quickSummary" class="btn">Quick</button>
-          <button id="detailedSummary" class="btn">Detailed</button>
-          <button id="readSummary" class="btn">🔈 Read</button>
-          <button id="copySummary" class="btn">Copy</button>
-        </div>
-        <div id="summaryOutput" class="output">Summaries will appear here...</div>
+    <section id="summaries" class="panel">
+      <h2>Summaries</h2>
+      <div class="controls">
+        <button id="quickSummary" class="btn">Quick</button>
+        <button id="detailedSummary" class="btn">Detailed</button>
+        <button id="readSummary" class="btn">Read</button>
       </div>
+      <div id="summaryBox" class="output">Summaries will appear here...</div>
+    </section>
 
-      <div id="quiz" class="panel-inner hidden">
-        <h3>Quiz</h3>
-        <div class="controls" style="margin-bottom:10px">
-          <select id="quizType" class="input small">
-            <option value="mcq">MCQ (4 choices)</option>
-            <option value="tf">True/False</option>
-            <option value="short">Short answer</option>
-          </select>
-          <select id="quizTimer" class="input small">
-            <option value="none">No timer</option>
-            <option value="30">30s</option>
-            <option value="60">60s</option>
-          </select>
-          <button id="generateQuiz" class="btn pri">Generate</button>
-          <button id="readQuiz" class="btn">🔈 Read</button>
-          <button id="copyQuiz" class="btn">Copy</button>
-        </div>
-        <div id="quizOutput" class="output">Quiz appears here...</div>
+    <section id="quiz" class="panel">
+      <h2>Quiz</h2>
+      <div class="controls">
+        <select id="quizType">
+          <option value="mcq">MCQ (4 choices)</option>
+          <option value="tf">True/False</option>
+        </select>
+        <button id="generateQuiz" class="btn btn-primary">Generate</button>
+        <button id="readQuiz" class="btn">Read</button>
       </div>
+      <div id="quizBox" class="output">Quiz appears here...</div>
+    </section>
 
-      <div id="manage" class="panel-inner hidden">
-        <h3>Manage</h3>
-        <div class="controls" style="margin-bottom:10px">
-          <button id="backupBtn" class="btn">Backup library</button>
-          <input id="restoreFile" type="file" accept=".json" />
-          <button id="restoreBtn" class="btn">Restore</button>
-          <button id="clearLibBtn" class="btn danger">Delete library</button>
-          <button id="downloadDebug" class="btn">Download debug report</button>
-        </div>
-        <div id="manageList" class="file-list">No actions yet</div>
+    <section id="manage" class="panel">
+      <h2>Manage</h2>
+      <div>
+        <button id="backupBtn" class="btn">Export Backup (JSON)</button>
+        <button id="restoreBtn" class="btn">Restore Backup</button>
+        <input type="file" id="restoreFile" style="display:none">
       </div>
+      <div class="note">All data stored locally (browser). Use backup to move between devices.</div>
+    </section>
 
-      <div id="syllabus" class="panel-inner hidden">
-        <h3>Syllabus / Mapping</h3>
-        <div id="syllabusInfo" class="output">Use default NCERT-style heuristics; upload a syllabus JSON in Manage to override.</div>
-      </div>
+    <section id="help" class="panel">
+      <h2>Help</h2>
+      <p>Upload PDF/TXT/HTML or a ZIP (auto-unpacks). If PDFs are images, enable OCR (not included in this build). Use "Process" to extract text. Summaries & quizzes generated locally.</p>
+      <p>If voice doesn't sound Indian on your device, try selecting "English (India)" and check browser voices (Chrome desktop usually has en-IN).</p>
+    </section>
 
-      <div id="feedback" class="panel-inner hidden">
-        <h3>Feedback</h3>
-        <textarea id="feedbackText" rows="5" style="width:100%;background:transparent;border:1px solid #233042;padding:8px;border-radius:8px;color:var(--text)"></textarea>
-        <div class="controls" style="margin-top:8px">
-          <input id="feedbackEmail" placeholder="Owner email (for notifications)" class="input small" />
-          <button id="sendFeedback" class="btn pri">Save feedback</button>
-        </div>
-        <div id="feedbackList" class="file-list" style="margin-top:8px">No feedback yet</div>
-      </div>
-
-      <div id="help" class="panel-inner hidden">
-        <h3>Help</h3>
-        <div class="output" style="margin-bottom:8px">
-          Quick start:
-          1) Save your name, 2) Click Choose files → select files or a ZIP, 3) Click Process, 4) Go to Library → select file rows, 5) Generate Summaries / Quiz.
-        </div>
-        <div class="output">If a PDF is scanned (image), OCR is required (not enabled by default). For Indian TTS voices ensure your device has the language voice installed.</div>
-      </div>
-    </div>
-
-    <div class="footer">
-      <small>Made with ❤️ — Smart Study Companion. Works offline after first load.</small>
-    </div>
+    <footer class="footer">Made with ❤️ — Smart Study Companion • Works offline after first load</footer>
   </div>
 
-  <!-- External libraries (only once each) -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" crossorigin="anonymous"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.min.js" crossorigin="anonymous"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.worker.min.js" crossorigin="anonymous"></script>
-  <script>
-    if (window.pdfjsLib && pdfjsLib.GlobalWorkerOptions) {
-      pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.worker.min.js";
-    }
-  </script>
-
-  <!-- Inline main app script (cleaned & matched to IDs in HTML) -->
-  <script>
-  (function(){
-    // ---------- Basic state ----------
-    const STORAGE_LIB = 'ssc_library_v1';
-    const STORAGE_SETTINGS = 'ssc_settings_v1';
-    const STORAGE_FEEDBACK = 'ssc_feedback_v1';
-
-    const DEFAULT_SYLLABUS = {
-      "CBSE Class 10": {
-        "Mathematics": ["Real Numbers","Polynomials","Pair of Linear Equations","Triangles","Coordinate Geometry","Trigonometry","Circles","Constructions","Areas","Probability","Statistics"],
-        "Science": ["Chemical Reactions","Acids,Bases & Salts","Metals & Non-metals","Carbon & its compounds","Periodic Classification","Life processes","Heredity","Light","Electricity","Magnetism"],
-        "Social Science": ["Nationalism in India","The Rise of Nationalism in Europe","Industrialization","Agrarian Change","The Making of a Global World","Resources and Development"]
-      }
-    };
-
-    const DOM = id => document.getElementById(id);
-    const bySel = sel => document.querySelectorAll(sel);
-    const toast = (m) => {
-      console.log('[SSC]', m);
-    };
-
-    // capture recent errors for debug report
-    const RECENT_ERRORS = [];
-    window.addEventListener('error', e=> {
-      RECENT_ERRORS.push({ts:new Date().toISOString(), msg: e.message, src: e.filename, line: e.lineno});
-      if(RECENT_ERRORS.length>50) RECENT_ERRORS.shift();
-    });
-    window.addEventListener('unhandledrejection', e=>{
-      RECENT_ERRORS.push({ts:new Date().toISOString(), msg: (e.reason && e.reason.message) || String(e.reason)});
-      if(RECENT_ERRORS.length>50) RECENT_ERRORS.shift();
-    });
-
-    // initial state
-    let STATE = {
-      currentCollection: 'CBSE Class 10',
-      library: {}, // library[collection] = {items:[]}
-      settings: {
-        studentName: '',
-        voiceLang: 'en-IN',
-        ownerEmail: ''
-      },
-      voices: []
-    };
-
-    // ---------- Storage helpers ----------
-    function saveSettings(){ localStorage.setItem(STORAGE_SETTINGS, JSON.stringify(STATE.settings)); }
-    function loadSettings(){
-      try {
-        const raw = localStorage.getItem(STORAGE_SETTINGS);
-        if(raw) STATE.settings = JSON.parse(raw);
-      } catch(e){}
-    }
-    function saveLibrary(){ localStorage.setItem(STORAGE_LIB, JSON.stringify(STATE.library)); }
-    function loadLibrary(){
-      try {
-        const raw = localStorage.getItem(STORAGE_LIB);
-        if(raw) STATE.library = JSON.parse(raw);
-        else {
-          STATE.library = {};
-          STATE.library[STATE.currentCollection] = { items: [] };
-          saveLibrary();
-        }
-      } catch(e){
-        STATE.library = {}; STATE.library[STATE.currentCollection]={items:[]};
-        saveLibrary();
-      }
-    }
-    function saveFeedbackLocally(fb){ const arr = JSON.parse(localStorage.getItem(STORAGE_FEEDBACK)||'[]'); arr.push(fb); localStorage.setItem(STORAGE_FEEDBACK, JSON.stringify(arr)); }
-
-    // ---------- Voice setup ----------
-    function loadVoices(){
-      return new Promise(resolve=>{
-        const synth = window.speechSynthesis;
-        function setVoices(){
-          STATE.voices = synth.getVoices();
-          resolve(STATE.voices);
-        }
-        setTimeout(()=>{ if(synth.getVoices().length) setVoices(); }, 50);
-        synth.onvoiceschanged = setVoices;
-      });
-    }
-    function speak(text){
-      if(!text) return;
-      if(!('speechSynthesis' in window)) return alert('Speech Synthesis not supported on this device.');
-      const u = new SpeechSynthesisUtterance(text);
-      u.lang = STATE.settings.voiceLang || DOM('voiceSelect').value || 'en-IN';
-      const matched = STATE.voices.find(v => v.lang && v.lang.toLowerCase().startsWith(u.lang.toLowerCase()));
-      if(matched) u.voice = matched;
-      u.rate = 0.95; u.pitch = 1.0;
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.speak(u);
-    }
-
-    // ---------- UI helpers ----------
-    function showPanel(name){
-      const panels = ['library','summaries','quiz','manage','syllabus','feedback','help'];
-      panels.forEach(p=>{
-        const el = DOM(p);
-        if(!el) return;
-        if(p===name) el.classList.remove('hidden');
-        else el.classList.add('hidden');
-      });
-      // update active tab
-      bySel('#tabsRow .tab').forEach(b=>b.classList.toggle('active', b.dataset.tab===name));
-    }
-
-    function renderLibrary(){
-      const list = DOM('libraryList');
-      list.innerHTML = '';
-      const col = STATE.library[STATE.currentCollection];
-      if(!col || !col.items || col.items.length===0){
-        list.textContent = 'No files in library. Upload PDFs / ZIPs and press Process.';
-        return;
-      }
-      col.items.forEach((it, idx)=>{
-        const d = document.createElement('div');
-        d.style.display='flex'; d.style.justifyContent='space-between'; d.style.padding='8px 6px';
-        d.style.borderBottom='1px solid rgba(255,255,255,0.02)';
-        d.innerHTML = `<div><strong style="color:#cfe7ff">${it.filename}</strong><div style="color:var(--muted)">${it.subject} — ${it.chapter}</div></div><div style="color:var(--muted)">${it.pages||'-'}</div>`;
-        list.appendChild(d);
-      });
-    }
-
-    // ---------- File processing ----------
-    let SELECTED_FILES = [];
-    DOM('fileInput').addEventListener('change', (e)=>{
-      SELECTED_FILES = Array.from(e.target.files || []);
-      const fl = DOM('libraryList');
-      if(SELECTED_FILES.length===0) fl.textContent = 'No files selected.';
-      else fl.innerHTML = SELECTED_FILES.map(f=>`<div>${f.name} — ${(f.size/1024|0)} KB</div>`).join('');
-    });
-
-    async function processFiles(){
-      if(!SELECTED_FILES || SELECTED_FILES.length===0) return alert('Choose files first.');
-      if(!STATE.library[STATE.currentCollection]) STATE.library[STATE.currentCollection] = { items: [] };
-
-      let total = SELECTED_FILES.reduce((s,f)=>s+f.size, 0);
-      if(total > 500*1024*1024){
-        if(!confirm(`Selected total ${(total/1024/1024).toFixed(1)} MB — continue?`)) return;
-      }
-
-      for(const f of SELECTED_FILES){
-        const lower = f.name.toLowerCase();
-        if(lower.endsWith('.zip')) await processZip(f);
-        else if(lower.endsWith('.pdf')) await processPdf(f);
-        else if(lower.endsWith('.txt')||lower.endsWith('.md')) await processText(f);
-        else if(lower.endsWith('.html')||lower.endsWith('.htm')) await processHtml(f);
-        else if(/\.(jpg|jpeg|png)$/i.test(lower)) {
-          await storeItem({filename:f.name, type:'image', text:'[image file - OCR not performed]', pages:1});
-        } else {
-          await storeItem({filename:f.name, type:'other', text:'[unsupported file type]', pages:0});
-        }
-      }
-
-      saveLibrary();
-      renderLibrary();
-      alert('Processing complete (local).');
-    }
-
-    async function processZip(file){
-      try{
-        const data = await file.arrayBuffer();
-        const zip = await JSZip.loadAsync(data);
-        for(const name in zip.files){
-          const entry = zip.files[name];
-          if(entry.dir) continue;
-          const lower = name.toLowerCase();
-          const blob = await entry.async('blob');
-          const f = new File([blob], name, {type: blob.type});
-          if(lower.endsWith('.pdf')) await processPdf(f);
-          else if(lower.endsWith('.txt')||lower.endsWith('.md')) await processText(f);
-          else if(lower.endsWith('.html')||lower.endsWith('.htm')) await processHtml(f);
-          else await storeItem({filename:name, type:'other', text:'[in zip]', pages:0});
-        }
-      } catch(e){
-        console.error('ZIP error',e); RECENT_ERRORS.push({ts:new Date().toISOString(), msg:'zip:'+e.message});
-        alert('ZIP unpack failed: '+e.message);
-      }
-    }
-
-    async function processPdf(file){
-      try{
-        const arr = await file.arrayBuffer();
-        const pdf = await pdfjsLib.getDocument({data:arr}).promise;
-        let full = '';
-        for(let p=1;p<=pdf.numPages;p++){
-          const pg = await pdf.getPage(p);
-          const txt = await pg.getTextContent();
-          const pageText = txt.items.map(it=>it.str).join(' ');
-          full += '\n' + pageText;
-        }
-        await storeItem({filename:file.name, type:'pdf', text:full, pages: pdf.numPages});
-      } catch(e){
-        console.error('PDF parse error', e); RECENT_ERRORS.push({ts:new Date().toISOString(), msg:'pdf:'+e.message});
-        await storeItem({filename:file.name, type:'pdf', text:'[PDF extraction failed]', pages:0});
-      }
-    }
-
-    async function processText(file){
-      try{
-        const txt = await file.text();
-        await storeItem({filename:file.name, type:'text', text: txt, pages: Math.max(1, Math.ceil(txt.length/1200))});
-      }catch(e){ console.error(e); }
-    }
-
-    async function processHtml(file){
-      try{
-        const html = await file.text();
-        const stripped = html.replace(/<[^>]*>/g,' ');
-        await storeItem({filename:file.name, type:'html', text:stripped, pages: Math.max(1, Math.ceil(stripped.length/1600))});
-      }catch(e){ console.error(e); }
-    }
-
-    async function storeItem({filename,type='text',text='',pages=1}){
-      const id = 'it_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);
-      const grouping = autoGroup(filename, text);
-      const item = {id, filename, type, text: (text||''), subject: grouping.subject, chapter: grouping.chapter, pages};
-      if(!STATE.library[STATE.currentCollection]) STATE.library[STATE.currentCollection] = {items:[]};
-      STATE.library[STATE.currentCollection].items.push(item);
-    }
-
-    function autoGroup(filename, text){
-      const joined = (filename + ' ' + (text||'')).toLowerCase();
-      const syllabus = DEFAULT_SYLLABUS[STATE.currentCollection] || {};
-      for(const subj of Object.keys(syllabus)){
-        if(joined.includes(subj.toLowerCase())){
-          for(const ch of syllabus[subj]){
-            if(joined.includes(ch.toLowerCase())) return {subject:subj, chapter:ch};
-          }
-          return {subject:subj, chapter: syllabus[subj][0] || 'Overview'};
-        }
-      }
-      if(/math/i.test(filename)) return {subject:'Mathematics', chapter:'Overview'};
-      if(/science/i.test(filename)) return {subject:'Science', chapter:'Overview'};
-      return {subject:'General', chapter:'Overview'};
-    }
-
-    // ---------- Summaries ----------
-    function quickSummary(){
-      const col = STATE.library[STATE.currentCollection];
-      if(!col || !col.items || col.items.length===0) return alert('No library items yet.');
-      const all = col.items.map(i=>i.text||'').join('\n\n');
-      const out = extractiveSummary(all,6);
-      DOM('summaryOutput').textContent = out;
-    }
-    function detailedSummary(){
-      const col = STATE.library[STATE.currentCollection];
-      if(!col || !col.items || col.items.length===0) return alert('No library items yet.');
-      const all = col.items.map(i=>i.text||'').join('\n\n');
-      const out = extractiveSummary(all,14);
-      DOM('summaryOutput').textContent = out;
-    }
-
-    function extractiveSummary(text, n=6){
-      const sents = text.split(/(?<=[.?!])\s+/).filter(s=>s.trim().length>30);
-      if(sents.length===0) return 'Not enough extracted text to summarize (some PDFs may be scanned images).';
-      const keywords = ['important','therefore','because','means','consists','includes','definition','is called'];
-      const scored = sents.map(s=>{
-        let sc = Math.log(1 + s.length);
-        for(const k of keywords) if(s.toLowerCase().includes(k)) sc+=1;
-        return {s,sc};
-      });
-      scored.sort((a,b)=>b.sc - a.sc);
-      return scored.slice(0,n).map(x=>x.s.trim()).join('\n\n');
-    }
-
-    // ---------- Quiz generation ----------
-    function generateQuiz(){
-      const type = DOM('quizType').value;
-      const col = STATE.library[STATE.currentCollection];
-      if(!col || !col.items || col.items.length===0) return alert('No library items yet.');
-      const text = col.items.map(i=>i.text||'').join('\n\n');
-      if(type==='mcq') renderMCQ(makeMCQs(text,6));
-      else if(type==='tf') renderTF(makeTF(text,8));
-      else renderShorts(makeShorts(text,6));
-    }
-
-    function makeMCQs(text, n=6){
-      const sents = text.split(/(?<=[.?!])\s+/).filter(s=>s.length>40);
-      const cand = sents.filter(s=>/\bis\b|\bare\b/i.test(s));
-      const out = [];
-      for(let i=0;i<Math.min(n,cand.length);i++){
-        const q = cand[i];
-        const parts = q.split(/\b(is|are|was|were)\b/i);
-        let stem=q, answer='';
-        if(parts.length>2){ stem = parts[0] + ' ____ ' + parts.slice(2).join(' '); answer = parts[2].split(/[.,;]/)[0]; }
-        else { stem = q.split('.')[0] + '?'; answer = q.split('.')[0]; }
-        const wrong = [];
-        for(let j=0;j<cand.length && wrong.length<3;j++){
-          if(j===i) continue;
-          const frag = cand[j].split(/[.,;]/)[0];
-          if(frag && frag!==answer) wrong.push(frag);
-        }
-        while(wrong.length<3) wrong.push(answer.split(' ').slice(0,3).join(' '));
-        const choices = [answer,...wrong].slice(0,4);
-        for(let k=choices.length-1;k>0;k--){ const r=Math.floor(Math.random()*(k+1)); [choices[k],choices[r]]=[choices[r],choices[k]]; }
-        out.push({stem,answer,choices});
-      }
-      return out;
-    }
-
-    function renderMCQ(list){
-      const box = DOM('quizOutput'); box.innerHTML='';
-      if(!list || list.length===0){ box.textContent='Not enough material to make MCQs.'; return; }
-      list.forEach((q, idx)=>{
-        const wr = document.createElement('div'); wr.style.marginBottom='12px';
-        const h = document.createElement('div'); h.style.fontWeight=600; h.style.color='#dbefff'; h.textContent = `Q${idx+1}. ${q.stem}`;
-        wr.appendChild(h);
-        q.choices.forEach(c=>{
-          const b = document.createElement('button');
-          b.className='btn'; b.style.marginRight='6px'; b.textContent = c;
-          b.addEventListener('click', ()=> {
-            if(c===q.answer){ b.style.background='#27ae60'; toast('Correct'); }
-            else { b.style.background='#e85a5a'; toast('Wrong — correct: '+q.answer); }
-          });
-          wr.appendChild(b);
-        });
-        box.appendChild(wr);
-      });
-    }
-
-    function makeTF(text,n=8){
-      const sents = text.split(/(?<=[.?!])\s+/).filter(s=>s.length>40);
-      return sents.slice(0,n).map(s=>({stmt:s.trim(), answer: Math.random()>0.3}));
-    }
-    function renderTF(list){
-      const box = DOM('quizOutput'); box.innerHTML='';
-      list.forEach((q,i)=>{
-        const p = document.createElement('div'); p.style.marginBottom='10px';
-        const t = document.createElement('div'); t.innerHTML = `<strong>Q${i+1}.</strong> ${q.stmt}`;
-        const bt = document.createElement('button'); bt.className='btn'; bt.textContent='True'; bt.addEventListener('click', ()=> alert(q.answer? 'Correct':'Incorrect'));
-        const bf = document.createElement('button'); bf.className='btn'; bf.textContent='False'; bf.addEventListener('click', ()=> alert(!q.answer? 'Correct':'Incorrect'));
-        p.appendChild(t); p.appendChild(bt); p.appendChild(bf);
-        box.appendChild(p);
-      });
-    }
-    function makeShorts(text,n=6){ const sents = text.split(/(?<=[.?!])\s+/).filter(s=>s.length>50); return sents.slice(0,n).map(s=>({q:s.split(/[.?!]/)[0]+'?', a:s.split('.')[0]})); }
-    function renderShorts(list){ const box=DOM('quizOutput'); box.innerHTML=''; list.forEach((s,i)=>{ const d=document.createElement('div'); d.innerHTML=`<div style="font-weight:600">Q${i+1}. ${s.q}</div><div style="color:var(--muted)">Answer: ${s.a}</div>`; box.appendChild(d); }); }
-
-    // ---------- Manage: backup / restore / debug ----------
-    function backupLibrary(){
-      const data = JSON.stringify(STATE.library, null, 2);
-      const blob = new Blob([data], {type:'application/json'});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href=url; a.download = `ssc_backup_${Date.now()}.json`; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-    }
-    function restoreLibraryFromFile(){
-      const f = DOM('restoreFile').files[0];
-      if(!f) return alert('Choose a JSON backup file first');
-      const r = new FileReader(); r.onload = e => {
-        try{ STATE.library = JSON.parse(e.target.result); saveLibrary(); renderLibrary(); alert('Restored'); } catch(err){ alert('Invalid JSON'); }
-      }; r.readAsText(f);
-    }
-    function clearLibraryConfirmed(){
-      if(!confirm('Delete local library?')) return;
-      STATE.library = {}; STATE.library[STATE.currentCollection] = {items:[]}; saveLibrary(); renderLibrary(); alert('Cleared');
-    }
-    function downloadDebugReport(){
-      const report = {
-        ts: new Date().toISOString(),
-        settings: STATE.settings,
-        librarySummary: Object.keys(STATE.library).reduce((acc,k)=>{ acc[k]=STATE.library[k].items.length; return acc },{}),
-        recentErrors: RECENT_ERRORS,
-        userAgent: navigator.userAgent
-      };
-      const blob = new Blob([JSON.stringify(report,null,2)], {type:'application/json'});
-      const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='ssc_debug_'+Date.now()+'.json'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-    }
-
-    // ---------- Feedback ----------
-    function saveFeedback(){
-      const txt = DOM('feedbackText').value.trim(); if(!txt) return alert('Write feedback first');
-      const fb = {text:txt, ts: new Date().toISOString(), email: DOM('feedbackEmail').value || STATE.settings.ownerEmail || ''};
-      saveFeedbackLocally(fb); DOM('feedbackText').value=''; refreshFeedbackList(); alert('Saved locally. Thank you!');
-    }
-    function refreshFeedbackList(){
-      const arr = JSON.parse(localStorage.getItem(STORAGE_FEEDBACK) || '[]');
-      const node = DOM('feedbackList'); node.innerHTML=''; if(arr.length===0) { node.textContent='No feedback yet'; return; }
-      arr.slice().reverse().forEach(it=>{ const d=document.createElement('div'); d.style.padding='6px 4px'; d.innerHTML = `<div style="font-weight:600">${it.ts}</div><div style="color:var(--muted)">${it.text}</div>`; node.appendChild(d); });
-    }
-
-    // ---------- Wire UI ----------
-    // Tabs
-    bySel('#tabsRow .tab').forEach(b=>{
-      b.addEventListener('click', ()=> showPanel(b.dataset.tab));
-    });
-
-    DOM('saveName').addEventListener('click', ()=>{
-      STATE.settings.studentName = DOM('studentName').value.trim();
-      saveSettings(); alert('Saved name');
-    });
-
-    DOM('processFiles').addEventListener('click', processFiles);
-
-    DOM('quickSummary').addEventListener('click', quickSummary);
-    DOM('detailedSummary').addEventListener('click', detailedSummary);
-    DOM('readSummary').addEventListener('click', ()=> speak(DOM('summaryOutput').textContent));
-    DOM('copySummary').addEventListener('click', ()=> navigator.clipboard?.writeText(DOM('summaryOutput').textContent));
-
-    DOM('generateQuiz').addEventListener('click', generateQuiz);
-    DOM('readQuiz').addEventListener('click', ()=> speak(DOM('quizOutput').textContent));
-    DOM('copyQuiz').addEventListener('click', ()=> navigator.clipboard?.writeText(DOM('quizOutput').textContent));
-
-    DOM('backupBtn').addEventListener('click', backupLibrary);
-    DOM('restoreBtn').addEventListener('click', restoreLibraryFromFile);
-    DOM('clearLibBtn').addEventListener('click', clearLibraryConfirmed);
-    DOM('downloadDebug').addEventListener('click', downloadDebugReport);
-
-    DOM('sendFeedback').addEventListener('click', saveFeedback);
-
-    // voice select change
-    DOM('voiceSelect').addEventListener('change', e=>{ STATE.settings.voiceLang = e.target.value; saveSettings(); });
-
-    // init load
-    (async function boot(){
-      loadSettings();
-      loadLibrary();
-      refreshFeedbackList();
-      DOM('studentName').value = STATE.settings.studentName || '';
-      DOM('feedbackEmail').value = STATE.settings.ownerEmail || '';
-      DOM('voiceSelect').value = STATE.settings.voiceLang || 'en-IN';
-      await loadVoices();
-      renderLibrary();
-      showPanel('library');
-    })();
-
-  })();
-  </script>
+  <!-- main app logic -->
+  <script src="app.js"></script>
 </body>
 </html>
