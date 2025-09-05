@@ -39,6 +39,187 @@
   </style>
 
   <!—pdf.js (for PDF text extraction) 
+  <!—jszip for zip unpack 
+</head>
+<body>
+  <div class=”container”>
+    <header>
+      <h1>Smart Study Companion — General</h1>
+      <div class=”note”>Works offline after first load • Local processing only</div>
+    </header>
+
+    <!—top bar: user name, collection, voice 
+    <div class=”card”>
+      <div class=”row”>
+        <label class=”small”>Student name</label>
+        <input id=”studentName” type=”text” placeholder=”Enter name” />
+        <button class=”btn btn-primary” id=”saveNameBtn”>Save</button>
+
+        <label class=”small”>Collection</label>
+        <input id=”collectionName” type=”text” value=”CBSE Class 10” />
+        <button class=”btn” id=”setCollectionBtn”>Set</button>
+
+        <label class=”small”>Voice</label>
+        <select id=”voiceSelect”>
+          <option value=”en-IN”>English (India)</option>
+          <option value=”hi-IN”>Hindi (India)</option>
+          <option value=”mr-IN”>Marathi (India)</option>
+          <option value=”en-US”>English (US)</option>
+        </select>
+        <button class=”btn” id=”toggleVoiceBtn”>Enable</button>
+
+        <div style=”flex:1”></div>
+
+        <span class=”badge” id=”statusBadge”>Offline after first load</span>
+      </div>
+    </div>
+
+    <!—Upload area 
+    <div class=”card” id=”uploadCard”>
+      <div class=”section-title”>Load material (PDF / ZIP / TXT / HTML / JPG / PNG)</div>
+      <div class=”controls”>
+        <input id=”fileInput” type=”file” accept=”.pdf,.zip,.txt,.html,.htm,.jpg,.jpeg,.png” multiple />
+        <button class=”btn” id=”processBtn”>Process files</button>
+        <div class=”note”>Plan: ZIP auto-unpacks. Max single upload 500 MB. All processing is local.</div>
+      </div>
+
+      <div class=”filelist” id=”fileList”>No files yet.</div>
+    </div>
+
+    <!—Library / Summaries / Quiz area 
+    <div class=”card”>
+      <div class=”row”>
+        <button class=”pill” id=”tabLibrary”>Library</button>
+        <button class=”pill” id=”tabSummaries”>Summaries</button>
+        <button class=”pill” id=”tabQuiz”>Quiz</button>
+        <button class=”pill” id=”tabManage”>Manage</button>
+        <button class=”pill” id=”tabSyllabus”>Syllabus</button>
+        <button class=”pill” id=”tabFeedback”>Feedback</button>
+        <button class=”pill” id=”tabHelp”>Help</button>
+      </div>
+
+      <!—library 
+      <div id=”panelLibrary” class=”card”>
+        <div class=”section-title”>Current library — <span id=”currentCollectionLabel”>CBSE Class 10</span></div>
+        <div class=”filelist” id=”libList”>No library loaded. Add files to process them.</div>
+      </div>
+
+      <!—summaries 
+      <div id=”panelSummaries” class=”card hidden”>
+        <div class=”row”>
+          <button class=”btn” id=”quickSummaryBtn”>Quick</button>
+          <button class=”btn” id=”detailedSummaryBtn”>Detailed</button>
+          <button class=”btn” id=”readSummaryBtn”>🔈 Read</button>
+          <button class=”btn” id=”copySummaryBtn”>📋 Copy</button>
+        </div>
+        <textarea id=”summaryBox” placeholder=”Summaries will appear here…”></textarea>
+      </div>
+
+      <!—quiz 
+      <div id=”panelQuiz” class=”card hidden”>
+        <div class=”row”>
+          <select id=”quizType”>
+            <option value=”mcq”>MCQ (4 choices)</option>
+            <option value=”tf”>True/False</option>
+            <option value=”short”>Short answer</option>
+          </select>
+          <select id=”quizTimer”>
+            <option value=”none”>No timer</option>
+            <option value=”30”>30s / q</option>
+            <option value=”60”>60s / q</option>
+          </select>
+          <button class=”btn btn-primary” id=”generateQuizBtn”>Generate</button>
+          <button class=”btn” id=”readQuizBtn”>🔈 Read</button>
+          <button class=”btn” id=”copyQuizBtn”>📋 Copy</button>
+        </div>
+        <div class=”card” id=”quizBox” style=”min-height:160px”>Quiz appears here…</div>
+      </div>
+
+      <!—manage 
+      <div id=”panelManage” class=”card hidden”>
+        <div class=”row”>
+          <button class=”btn” id=”backupBtn”>Backup library</button>
+          <input id=”restoreFile” type=”file” accept=”.json” />
+          <button class=”btn” id=”restoreBtn”>Restore</button>
+          <button class=”btn” id=”clearLibBtn” style=”background:var(--danger)”>Delete library</button>
+        </div>
+        <div class=”note”>Archive / restore / delete collections or specific chapters coming in later versions.</div>
+      </div>
+
+      <!—syllabus (basic placeholder) 
+      <div id=”panelSyllabus” class=”card hidden”>
+        <div class=”section-title”>Syllabus mapping (used for auto-grouping)</div>
+        <div class=”note”>Default: NCERT-ish heuristics. You can later upload official syllabus JSON for better auto-grouping.</div>
+        <textarea id=”syllabusBox” style=”min-height:140px”></textarea>
+        <div class=”note small”>Edit syllabus mapping JSON carefully. Format: { “Class 10”: {“Subject”: [“chapter name”, …] } }</div>
+      </div>
+
+      <!—feedback 
+      <div id=”panelFeedback” class=”card hidden”>
+        <div class=”section-title”>User feedback</div>
+        <textarea id=”feedbackText” style=”min-height:120px” placeholder=”Tell us improvements…”></textarea>
+        <div class=”controls”>
+          <input id=”feedbackEmail” type=”text” placeholder=”Owner email for notification (configurable)” />
+          <button class=”btn” id=”sendFeedbackBtn”>Save feedback</button>
+        </div>
+        <div class=”note”>Saved feedback stored locally. Later can be sent to owner via server side integration.</div>
+        <div id=”feedbackList” class=”filelist”></div>
+      </div>
+
+      <!—help 
+      <div id=”panelHelp” class=”card hidden”>
+        <div class=”section-title”>Help & Manual</div>
+        <div class=”note”>User manual and Developer manual are in the repository under `/manuals`.</div>
+        <div class=”note”>Quick start: 1) Save name 2) Choose files 3) Process 4) Wait → check Library 5) Create summaries / quizzes</div>
+      </div>
+
+    </div>
+
+    <div class=”footer”>Made with ❤️ — offline-first. Developer controls available in repo.</div>
+  </div>
+
+  <!—main app script 
+<!doctype html>
+<html lang=”en”>
+<head>
+  <meta charset=”utf-8” />
+  <meta name=”viewport” content=”width=device-width,initial-scale=1” />
+  <title>Smart Study Companion — General</title>
+
+  <!—basic styles (dark) 
+  <style>
+    :root{
+      --bg:#0f1720; --card:#111827; --muted:#9aa4b2; --accent:#3ad29f; --btn:#2b3742;
+      --danger:#e85a5a; --accent2:#59b0ff; --gold:#d48806;
+    }
+    Html,body{height:100%;margin:0;font-family:Inter,Arial,Helvetica,sans-serif;background:var(--bg);color:#e6eef6}
+    .container{max-width:980px;margin:16px auto;padding:12px}
+    Header{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    H1{font-size:18px;margin:0 8px 0 0}
+    .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    Input[type=”text”], select{background:#0b1220;border:1px solid #202733;padding:8px;border-radius:8px;color:#e6eef6}
+    .btn{background:var(--btn);border:1px solid #24303b;padding:8px 12px;border-radius:10px;color:#dfe9f3;cursor:pointer}
+    .btn-primary{background:var(--accent);color:#042018;border:none}
+    .note{color:var(--muted);font-size:13px;margin-top:6px}
+    .card{background:linear-gradient(180deg,#0b1116,#0f151b);border:1px solid #222a33;padding:14px;border-radius:12px;margin-top:12px}
+    .controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}
+    Label{font-size:13px;color:var(--muted)}
+    .big{padding:14px 18px;border-radius:12px}
+    .section-title{font-weight:600;margin-bottom:8px}
+    Textarea{width:100%;min-height:200px;background:#081018;border:1px solid #1a252f;padding:12px;border-radius:8px;color:#dbeffb}
+    .pill{display:inline-block;padding:8px 12px;border-radius:999px;background:#0b1220;border:1px solid #1f2a33;color:var(--muted);margin-right:8px}
+    .small{font-size:13px}
+    .footer{color:var(--muted);font-size:13px;margin-top:20px;text-align:center}
+    .hidden{display:none}
+    .badge{background:#0b1220;padding:6px 8px;border-radius:8px;border:1px solid #26313a;color:var(--muted)}
+    .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+    @media(max-width:720px){ .grid{grid-template-columns:repeat(2,1fr)} header{gap:6px} }
+    .filelist{max-height:160px;overflow:auto;border-radius:8px;padding:8px;border:1px dashed #22303a;background:transparent}
+    .file-row{display:flex;justify-content:space-between;padding:6px 4px;border-bottom:1px solid rgba(255,255,255,0.02);align-items:center}
+    .muted{color:var(--muted)}
+  </style>
+
+  <!—pdf.js (for PDF text extraction) 
   <script src=https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.min.js crossorigin=”anonymous”></script>
   <script src=https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.worker.min.js crossorigin=”anonymous”></script>
 
@@ -186,5 +367,5 @@
   <!—main app script 
   <script src=”app.js”></script>
 </body>
+</html></body>
 </html>
-
