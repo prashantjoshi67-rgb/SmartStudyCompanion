@@ -1,26 +1,42 @@
 :root{
-  --bg:#0f1720; --card:#0b1116; --muted:#9aa4b2; --accent:#3ad29f;
-  --btn:#2b3742; --accent2:#59b0ff; --gold:#d48806;
+  --bg:#0f1720;
+  --card:#0b1220;
+  --muted:#9aa4b2;
+  --accent:#3ad29f;
+  --btn:#2b3742;
+  --accent2:#59b0ff;
+  --gold:#d48806;
   --text:#e6eef6;
+  --glass: rgba(255,255,255,0.03);
 }
 *{box-sizing:border-box}
 html,body{height:100%;margin:0;font-family:Inter,Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
 .container{max-width:980px;margin:12px auto;padding:12px}
-h1{font-size:32px;margin:6px 0}
-.card{background:linear-gradient(180deg,#0b1116,#0f151b);padding:12px;border-radius:10px;border:1px solid #222a33}
-.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}
-label{font-size:14px;color:var(--muted)}
-input[type="text"],select,input[type="file"]{padding:8px;border-radius:6px;background:#071018;border:1px solid #202733;color:var(--text);min-width:160px}
-.btn{padding:8px 12px;border-radius:10px;background:var(--btn);color:var(--text);border:none;cursor:pointer}
+.header{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.h1{font-size:34px;margin:0 0 8px 0;font-weight:700}
+.card{background:linear-gradient(180deg,#0b1116,#0f151b);border:1px solid rgba(255,255,255,0.03);padding:14px;border-radius:12px;margin-top:12px}
+.controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.input,select,textarea{background:transparent;border:1px solid rgba(255,255,255,0.06);padding:8px 10px;border-radius:8px;color:var(--text)}
+.btn{background:var(--btn);color:var(--text);padding:10px 14px;border-radius:12px;border:none;cursor:pointer}
 .btn-primary{background:var(--accent);color:#042018}
-.note{font-size:12px;color:var(--muted);margin-top:6px}
-.tabs{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
-.tab{background:#0b1116;border:1px solid #23303a;padding:8px 12px;border-radius:10px;color:var(--muted);cursor:pointer}
-.tab.active{background:var(--card);border-color:var(--accent2);color:var(--text)}
-.panel{display:none;margin-top:12px}
-.panel.active{display:block}
-.list{border:1px dashed #24303a;border-radius:10px;padding:6px;background:transparent}
-.item{padding:10px;border-bottom:1px solid #1b2530}
-.output{min-height:160px;border-radius:10px;border:1px solid #24303a;padding:12px;background:#071018;color:var(--text)}
-.controls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
-.footer{margin-top:18px;font-size:13px;color:var(--muted)}
+.small{font-size:13px;color:var(--muted)}
+.tabs{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.tab{padding:10px 14px;border-radius:10px;background:transparent;border:1px solid rgba(255,255,255,0.03);cursor:pointer}
+.tab.active{outline:2px solid rgba(89,176,255,0.085);background:rgba(255,255,255,0.01)}
+.section-title{font-weight:700;font-size:20px;margin:12px 0}
+.notice{background:rgba(255,255,255,0.02);padding:10px;border-radius:8px;color:var(--muted);font-size:14px}
+.library-list{margin-top:10px;border-radius:8px;overflow:hidden}
+.row-item{display:flex;justify-content:space-between;padding:12px;border-bottom:1px solid rgba(255,255,255,0.02)}
+.row-item .meta{color:var(--muted);font-size:13px}
+.center{display:flex;justify-content:center;align-items:center}
+.footer{margin:18px 0;color:var(--muted);font-size:13px;text-align:center}
+.alert{background:rgba(212,85,85,0.07);padding:10px;border-radius:8px;color:#f3b0b0}
+.big{padding:14px 18px;border-radius:12px}
+.primary-cta{background:linear-gradient(90deg,#2ee0b6,#3ad29f);color:#042018;border:none;padding:12px 18px;border-radius:14px;cursor:pointer}
+.orange{background:#d48806;color:#08120a;padding:10px 14px;border-radius:10px}
+#fileList{margin-top:8px}
+kbd{background:rgba(255,255,255,0.03);padding:6px;border-radius:6px}
+textarea#output{width:100%;height:240px;background:transparent;border:1px solid rgba(255,255,255,0.03);padding:12px;border-radius:10px;color:var(--text)}
+.select{padding:8px;border-radius:8px;background:transparent;border:1px solid rgba(255,255,255,0.04);color:var(--text)}
+small.hint{display:block;color:var(--muted);margin-top:6px}
+.copy-btn{background:rgba(255,255,255,0.03);padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.02);cursor:pointer}
