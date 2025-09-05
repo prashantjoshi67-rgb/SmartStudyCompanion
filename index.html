@@ -1,129 +1,188 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Smart Study Companion</title>
-
-  <!-- Your stylesheet (ensure style.css is at repo root) -->
-  <link rel="stylesheet" href="style.css">
-
-  <!-- Optional meta / icons -->
-  <meta name="description" content="Smart Study Companion — browser-based study helper (local processing)" />
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Smart Study Companion</title>
+<meta name="description" content="Smart Study Companion — browser-based study helper (local processing)" />
+<style>
+/* ---- Inlined CSS ---- */
+body { margin:0; font-family: Arial, sans-serif; background:#0f1218; color:#e6edf3; }
+.container { max-width: 1000px; margin: 20px auto; padding: 16px; }
+.panel { background:#161b22; border:1px solid #273243; border-radius:10px; padding:16px; margin-bottom:16px; }
+.btn { background:#2ea043; border:none; padding:8px 14px; border-radius:6px; cursor:pointer; color:white; margin-right:8px; }
+.btn:hover { background:#238636; }
+.hidden { display:none; }
+.output { white-space:pre-wrap; padding:10px; background:rgba(255,255,255,0.05); border-radius:8px; margin-top:8px; }
+.tab { background:transparent; border:1px solid transparent; padding:6px 10px; border-radius:6px; cursor:pointer; }
+.tab.active { border-color:#2c3946; background:#081017; }
+.file-list { min-height:100px; border:1px dashed #2c3946; border-radius:8px; padding:10px; margin-top:8px; }
+</style>
 </head>
 <body>
   <div class="container">
-    <header>
-      <h1>Smart Study Companion</h1>
-      <div class="controls">
-        <input id="studentName" type="text" placeholder="Your name" />
-        <button id="saveName" class="btn">Save</button>
+    <h1>Smart Study Companion</h1>
 
-        <select id="voiceSelect">
-          <option value="en-IN">English (India)</option>
-          <option value="hi-IN">Hindi</option>
-          <option value="mr-IN">Marathi</option>
-        </select>
+    <!-- Upload & Controls -->
+    <div class="panel">
+      <input id="studentName" placeholder="Student name" />
+      <select id="voiceSelect">
+        <option value="en-IN">English (India)</option>
+        <option value="hi-IN">हिन्दी</option>
+        <option value="mr-IN">मराठी</option>
+      </select>
+      <input id="fileInput" type="file" multiple accept=".pdf,.zip,.txt,.html,.htm" />
+      <button id="processFiles" class="btn">Process</button>
+    </div>
 
-        <label class="btn">
-          <input id="fileInput" type="file" multiple accept=".pdf,.zip,.txt,.html,.jpg,.png" />
-          Choose files
-        </label>
-
-        <button id="processFiles" class="btn-primary">Process</button>
-      </div>
-    </header>
-
-    <nav class="tabs">
+    <!-- Tabs -->
+    <div class="panel">
       <button data-tab="library" class="tab active">Library</button>
       <button data-tab="summaries" class="tab">Summaries</button>
       <button data-tab="quiz" class="tab">Quiz</button>
       <button data-tab="manage" class="tab">Manage</button>
-      <button data-tab="syllabus" class="tab">Syllabus</button>
       <button data-tab="feedback" class="tab">Feedback</button>
       <button data-tab="help" class="tab">Help</button>
-    </nav>
 
-    <main id="appMain">
-      <section id="library" class="panel visible">
-        <h2>Current library</h2>
-        <div id="libraryList">Add files to see them here.</div>
-      </section>
+      <!-- Panels -->
+      <div id="library" class="panel-inner">
+        <h3>Library</h3>
+        <div id="libraryList" class="file-list">Upload files to see them here</div>
+      </div>
 
-      <section id="summaries" class="panel">
-        <h2>Summaries</h2>
-        <div class="summary-controls">
-          <button id="quickSummary" class="btn">Quick</button>
-          <button id="detailedSummary" class="btn">Detailed</button>
-          <button id="readSummary" class="btn">Read</button>
-        </div>
-        <div id="summaryOutput" class="output">Summaries will appear here...</div>
-      </section>
+      <div id="summaries" class="panel-inner hidden">
+        <h3>Summaries</h3>
+        <button id="quickSummary" class="btn">Quick</button>
+        <button id="detailedSummary" class="btn">Detailed</button>
+        <button id="readSummary" class="btn">🔈 Read</button>
+        <div id="summaryOutput" class="output"></div>
+      </div>
 
-      <section id="quiz" class="panel">
-        <h2>Quiz</h2>
-        <div class="quiz-controls">
-          <select id="quizType">
-            <option value="mcq4">MCQ (4 choices)</option>
-            <option value="tf">True / False</option>
-            <option value="short">Short answer</option>
-          </select>
+      <div id="quiz" class="panel-inner hidden">
+        <h3>Quiz</h3>
+        <select id="quizType">
+          <option value="mcq">MCQ</option>
+          <option value="tf">True/False</option>
+          <option value="short">Short Answer</option>
+        </select>
+        <button id="generateQuiz" class="btn">Generate</button>
+        <div id="quizOutput" class="output"></div>
+      </div>
 
-          <select id="quizTimer">
-            <option value="none">No timer</option>
-            <option value="5">5s</option>
-            <option value="10">10s</option>
-          </select>
+      <div id="manage" class="panel-inner hidden">
+        <h3>Manage</h3>
+        <button id="backupBtn" class="btn">Backup</button>
+        <button id="clearLibBtn" class="btn">Clear</button>
+      </div>
 
-          <button id="generateQuiz" class="btn-primary">Generate</button>
-          <button id="readQuiz" class="btn">Read</button>
-        </div>
-        <div id="quizOutput" class="output">Quiz appears here...</div>
-      </section>
+      <div id="feedback" class="panel-inner hidden">
+        <h3>Feedback</h3>
+        <textarea id="feedbackText" rows="4" style="width:100%"></textarea>
+        <button id="sendFeedback" class="btn">Save</button>
+        <div id="feedbackList" class="file-list"></div>
+      </div>
 
-      <section id="manage" class="panel">
-        <h2>Manage library</h2>
-        <div id="manageList">Select rows → Manage tab for archive/restore/delete.</div>
-      </section>
-
-      <section id="syllabus" class="panel">
-        <h2>Syllabus / Mapping</h2>
-        <div id="syllabusInfo">Use default NCERT/CBSE mapping or upload custom map.</div>
-      </section>
-
-      <section id="feedback" class="panel">
-        <h2>Feedback</h2>
-        <textarea id="feedbackText" placeholder="Send feedback..."></textarea>
-        <button id="sendFeedback" class="btn-primary">Send</button>
-      </section>
-
-      <section id="help" class="panel">
-        <h2>Help</h2>
-        <div id="helpText">User manual available: <a href="manuals/User_Manual.html" target="_blank">Open User Manual</a></div>
-      </section>
-    </main>
-
-    <footer>
-      <small>Made with ❤️ — Smart Study Companion. Works offline after first load.</small>
-    </footer>
+      <div id="help" class="panel-inner hidden">
+        <h3>Help</h3>
+        <p>1. Enter name, 2. Upload files, 3. Process, 4. Use Summaries/Quiz.</p>
+        <p>Scanned PDFs not supported (OCR to be added in future).</p>
+      </div>
+    </div>
   </div>
 
-  <!-- External libraries (only once each) -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" crossorigin="anonymous"></script>
-
-  <!-- PDF.js core + worker (ensure version matches worker src below) -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.min.js" crossorigin="anonymous"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.worker.min.js" crossorigin="anonymous"></script>
-
+  <!-- External libs -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.worker.min.js"></script>
   <script>
-    // Ensure pdf.js knows worker location (required for some builds)
-    if (window.pdfjsLib && pdfjsLib.GlobalWorkerOptions) {
-      pdfjsLib.GlobalWorkerOptions.workerSrc =
-        "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.worker.min.js";
-    }
+  if (window.pdfjsLib && pdfjsLib.GlobalWorkerOptions) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.worker.min.js";
+  }
   </script>
 
-  <!-- Your main app logic (ensure app.js is at repo root) -->
-  <script src="app.js"></script>
+  <!-- Inlined JS -->
+  <script>
+  (function(){
+    const DOM = id=>document.getElementById(id);
+    const bySel=sel=>document.querySelectorAll(sel);
+
+    let LIBRARY=[];
+
+    function showTab(tab){
+      ["library","summaries","quiz","manage","feedback","help"].forEach(id=>{
+        DOM(id).classList.add("hidden");
+      });
+      DOM(tab).classList.remove("hidden");
+      bySel(".tab").forEach(b=>b.classList.toggle("active", b.dataset.tab===tab));
+    }
+    bySel(".tab").forEach(b=>b.addEventListener("click",()=>showTab(b.dataset.tab)));
+
+    // Process files
+    DOM("processFiles").addEventListener("click", async()=>{
+      const files=[...DOM("fileInput").files];
+      for(const f of files){
+        if(f.name.toLowerCase().endsWith(".pdf")) await handlePdf(f);
+        else if(f.name.toLowerCase().endsWith(".txt")) await handleText(f);
+      }
+      renderLibrary();
+    });
+
+    async function handlePdf(file){
+      try{
+        const buf=await file.arrayBuffer();
+        const pdf=await pdfjsLib.getDocument({data:buf}).promise;
+        let text="";
+        for(let p=1;p<=pdf.numPages;p++){
+          const page=await pdf.getPage(p);
+          const cont=await page.getTextContent();
+          text+=cont.items.map(i=>i.str).join(" ")+" ";
+        }
+        LIBRARY.push({name:file.name,text});
+      }catch(e){ console.error("PDF error",e); }
+    }
+    async function handleText(file){
+      const t=await file.text();
+      LIBRARY.push({name:file.name,text:t});
+    }
+    function renderLibrary(){
+      const list=DOM("libraryList"); list.innerHTML="";
+      LIBRARY.forEach(f=>{
+        const d=document.createElement("div");
+        d.textContent=f.name;
+        list.appendChild(d);
+      });
+    }
+
+    // Summaries
+    DOM("quickSummary").addEventListener("click",()=>summarize(5));
+    DOM("detailedSummary").addEventListener("click",()=>summarize(12));
+    function summarize(n){
+      const all=LIBRARY.map(f=>f.text).join(" ");
+      const sents=all.split(/(?<=[.?!])\s+/).filter(s=>s.length>30);
+      const out=sents.slice(0,n).join("\n\n");
+      DOM("summaryOutput").textContent=out||"Not enough text";
+    }
+
+    // Quiz
+    DOM("generateQuiz").addEventListener("click",()=>{
+      const all=LIBRARY.map(f=>f.text).join(" ");
+      const sents=all.split(/(?<=[.?!])\s+/).filter(s=>s.length>40);
+      let out="";
+      sents.slice(0,5).forEach((s,i)=>{ out+=`Q${i+1}: ${s}\n`; });
+      DOM("quizOutput").textContent=out||"Not enough text";
+    });
+
+    // Feedback
+    DOM("sendFeedback").addEventListener("click",()=>{
+      const t=DOM("feedbackText").value;
+      if(!t) return;
+      const d=document.createElement("div");
+      d.textContent=new Date().toISOString()+": "+t;
+      DOM("feedbackList").appendChild(d);
+      DOM("feedbackText").value="";
+    });
+
+  })();
+  </script>
 </body>
 </html>
