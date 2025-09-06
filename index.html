@@ -4,171 +4,169 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Smart Study Companion</title>
-  <link rel="stylesheet" href="style.css" />
-  <meta name="description" content="Smart Study Companion — summaries, quizzes, OCR, voice, targets & badges" />
+
+  <!-- Link to external CSS (we will provide style.css next) -->
+  <link rel="stylesheet" href="style.css">
+
+  <!-- PDF.js from CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.worker.min.js" crossorigin="anonymous"></script>
+
+  <!-- Tesseract.js (OCR) -->
+  <script src="https://unpkg.com/tesseract.js@v4.1.1/dist/tesseract.min.js"></script>
+
+  <!-- small helper style to ensure page isn't totally raw if CSS missing -->
+  <style>
+    :root{--bg:#081219;--card:#0f1b25;--accent:#2bd37a;--muted:#9aa4b2;--text:#e6eef6}
+    html,body{height:100%;margin:0;font-family:Inter,Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
+    .container{max-width:980px;margin:12px auto;padding:12px}
+    .card{background:var(--card);padding:14px;border-radius:12px;margin-bottom:12px}
+    .row{display:flex;gap:8px;flex-wrap:wrap}
+    .btn{background:#2a3742;color:var(--text);padding:10px 14px;border-radius:10px;border:none;cursor:pointer}
+    .btn.primary{background:var(--accent);color:#042018}
+    .select, input[type="text"]{padding:10px;border-radius:8px;border:1px solid #202733;background:#0b1220;color:var(--text)}
+    h1{margin:0 0 8px 0}
+    .notice{color:var(--muted);font-size:13px;margin-top:6px}
+    .hidden{display:none}
+    .library-item{border-top:1px dashed #24303a;padding:10px 0}
+    label.checkbox{display:flex;align-items:center;gap:8px}
+    .badge{display:inline-block;padding:6px 10px;border-radius:12px;background:#123;color:var(--text)}
+  </style>
 </head>
 <body>
-  <header class="topbar card">
-    <div style="display:flex;align-items:center;gap:12px;">
-      <div>
-        <h1 style="margin:0">Smart Study Companion</h1>
-        <div class="small muted">Offline-first • Local processing</div>
-      </div>
-    </div>
-    <div style="display:flex;gap:8px;align-items:center">
-      <div class="small muted">Status: <span id="licenseStatus">Demo mode</span></div>
-    </div>
-  </header>
-
-  <main class="container">
+  <div class="container">
+    <header class="card">
+      <h1>Smart Study Companion</h1>
+      <div class="notice">Offline-first · Local processing</div>
+      <div style="float:right" id="status">Status: <strong id="statusText">Demo</strong></div>
+      <div style="clear:both"></div>
+    </header>
 
     <!-- Controls -->
-    <section class="card">
-      <div class="row">
-        <label style="min-width:90px">Name</label>
-        <input id="userName" type="text" placeholder="Your name" />
-        <button id="saveName" class="btn btn-primary">Save</button>
+    <section class="card" id="controls">
+      <div>
+        <label>Name</label><br>
+        <input id="studentName" type="text" placeholder="Your name" />
+        <button id="saveName" class="btn primary">Save</button>
       </div>
 
-      <div class="row">
-        <label style="min-width:90px">Voice</label>
-        <select id="voiceSelect"></select>
+      <div style="margin-top:10px">
+        <label>Voice</label><br>
+        <select id="voiceSelect" class="select"></select>
         <button id="enableVoice" class="btn">Enable</button>
       </div>
 
-      <div class="row">
-        <label style="min-width:90px">Mode</label>
-        <select id="modeSelect">
+      <div style="margin-top:10px">
+        <label>Mode</label><br>
+        <select id="modeSelect" class="select">
           <option value="normal">Normal</option>
           <option value="kbc">KBC (Game)</option>
-          <option value="silent">Silent</option>
         </select>
       </div>
 
-      <div class="row">
-        <label style="min-width:90px">License</label>
-        <input id="licenseKey" placeholder="Enter license key" />
+      <div style="margin-top:10px">
+        <label>License</label><br>
+        <input id="licenseKey" type="text" placeholder="Enter license" />
         <button id="applyLicense" class="btn">Apply</button>
       </div>
 
-      <div class="row">
-        <label style="min-width:90px">Files</label>
-        <input id="fileInput" type="file" multiple accept=".pdf,.zip,.txt,.html,.htm,.jpg,.jpeg,.png" />
-        <button id="processFiles" class="btn btn-primary">Process</button>
+      <div style="margin-top:10px">
+        <label>Files</label><br>
+        <input id="fileInput" type="file" accept=".pdf,.txt,.html,.zip,.jpg,.png" multiple />
+        <button id="processBtn" class="btn primary">Process</button>
+        <div class="notice">Accepted: PDF / TXT / HTML / JPG / PNG / ZIP (auto-unpacks). Demo upload limit ~50MB; full mode supports larger uploads.</div>
       </div>
-
-      <div class="small note">Accepted: PDF / TXT / HTML / JPG / PNG / ZIP (auto-unpacks). Demo upload limit ~50MB; full mode supports larger files.</div>
     </section>
 
     <!-- Tabs -->
-    <nav class="tabs">
-      <button class="tab active" data-tab="library">Library</button>
-      <button class="tab" data-tab="summaries">Summaries</button>
-      <button class="tab" data-tab="quiz">Quiz</button>
-      <button class="tab" data-tab="manage">Manage</button>
-      <button class="tab" data-tab="settings">Settings</button>
-      <button class="tab" data-tab="feedback">Feedback</button>
-    </nav>
-
-    <!-- Library -->
-    <section id="library" class="panel card">
-      <h2>Library</h2>
-      <div id="libraryList" class="list"></div>
-    </section>
-
-    <!-- Summaries -->
-    <section id="summaries" class="panel card hidden">
-      <h2>Summaries</h2>
-      <div class="controls-inline">
-        <button id="quickSummary" class="btn">Quick</button>
-        <button id="detailedSummary" class="btn">Detailed</button>
-        <button id="readSummary" class="btn">Read</button>
+    <section class="card">
+      <div class="row" style="margin-bottom:12px">
+        <button class="btn" data-tab="library">Library</button>
+        <button class="btn" data-tab="summaries">Summaries</button>
+        <button class="btn" data-tab="quiz">Quiz</button>
+        <button class="btn" data-tab="manage">Manage</button>
+        <button class="btn" data-tab="settings">Settings</button>
+        <button class="btn" data-tab="feedback">Feedback</button>
       </div>
-      <div id="summaryOutput" class="output">(Summaries appear here)</div>
-    </section>
 
-    <!-- Quiz -->
-    <section id="quiz" class="panel card hidden">
-      <h2>Quiz</h2>
-      <div class="row">
-        <label style="min-width:90px">Quiz type</label>
-        <select id="quizType">
-          <option>MCQ (4 choices)</option>
-          <option>Short answer</option>
+      <!-- Library Tab -->
+      <div id="tab-library" class="tab">
+        <h2>Library</h2>
+        <div id="libraryList"></div>
+        <div style="margin-top:8px">
+          <button id="selectAll" class="btn">Select all</button>
+          <button id="deleteSelected" class="btn">Delete selected</button>
+          <button id="deleteAll" class="btn">Delete all</button>
+        </div>
+      </div>
+
+      <!-- Summaries Tab -->
+      <div id="tab-summaries" class="tab hidden">
+        <h2>Summaries</h2>
+        <div class="row" style="margin-bottom:8px">
+          <button id="quickSummary" class="btn">Quick</button>
+          <button id="detailedSummary" class="btn">Detailed</button>
+          <button id="readSummary" class="btn">Read</button>
+          <button id="createMCQs" class="btn">Create MCQs</button>
+        </div>
+        <div id="summaryOutput" class="card" style="min-height:120px">(no material)</div>
+      </div>
+
+      <!-- Quiz Tab -->
+      <div id="tab-quiz" class="tab hidden">
+        <h2>Quiz</h2>
+        <div class="row" style="margin-bottom:8px">
+          <select id="quizType" class="select">
+            <option value="mcq">MCQ (4 choices)</option>
+            <option value="tf">True/False</option>
+            <option value="short">Short answer</option>
+          </select>
+          <select id="quizTimer" class="select">
+            <option value="none">No timer</option>
+            <option value="30">30s/question</option>
+          </select>
+          <button id="generateQuiz" class="btn primary">Generate</button>
+          <button id="readQuiz" class="btn">Read</button>
+        </div>
+        <div id="quizOutput" class="card" style="min-height:160px">Quiz appears here...</div>
+      </div>
+
+      <!-- Manage Tab -->
+      <div id="tab-manage" class="tab hidden">
+        <h2>Manage</h2>
+        <div id="manageArea" class="card">Upload syllabus JSON, backups, or view logs.</div>
+      </div>
+
+      <!-- Settings Tab -->
+      <div id="tab-settings" class="tab hidden">
+        <h2>Settings / OCR</h2>
+        <label>OCR language</label><br>
+        <select id="ocrLang" class="select">
+          <option value="eng">English (eng)</option>
+          <option value="eng+hin">English + Hindi</option>
+          <option value="hin">Hindi (hin)</option>
+          <option value="mar">Marathi (mar)</option>
+          <option value="guj">Gujarati (guj)</option>
         </select>
-        <label style="min-width:80px">Timer</label>
-        <select id="quizTimer">
-          <option>No timer</option>
-          <option>10</option>
-          <option>30</option>
-        </select>
-        <button id="generateQuiz" class="btn btn-primary">Generate</button>
-        <button id="readQuiz" class="btn">Read</button>
-      </div>
-      <div id="quizOutput" class="output">(Quiz appears here)</div>
-    </section>
-
-    <!-- Manage -->
-    <section id="manage" class="panel card hidden">
-      <h2>Manage / Backup</h2>
-      <div class="row">
-        <button id="backupBtn" class="btn">Backup (download)</button>
-        <input id="restoreFile" type="file" accept=".json" />
-        <button id="restoreBtn" class="btn">Restore</button>
-        <button id="clearAll" class="btn btn-danger">Delete all</button>
+        <div class="notice">Tip: OCR is CPU-heavy on mobile. Prefer desktop for large batches.</div>
       </div>
 
-      <h3>Collections</h3>
-      <div id="collectionsList" class="list"></div>
-    </section>
-
-    <!-- Settings -->
-    <section id="settings" class="panel card hidden">
-      <h2>Settings & OCR</h2>
-      <div class="row">
-        <label style="min-width:90px">OCR language</label>
-        <select id="ocrLang">
-          <option value="eng">English</option>
-          <option value="hin">Hindi</option>
-          <option value="mar">Marathi</option>
-          <option value="eng+hin">Eng + Hin</option>
-        </select>
-        <button id="loadOCR" class="btn">Load OCR</button>
-      </div>
-
-      <div class="row">
-        <label style="min-width:90px">Daily target</label>
-        <input id="dailyTarget" type="number" min="1" value="20" />
-        <button id="setTarget" class="btn">Set</button>
-      </div>
-
-      <div id="progressBox" class="card">
-        <div>Today's progress: <span id="todayCount">0</span>/<span id="todayTarget">20</span></div>
-        <div>Streak days: <span id="streak">0</span></div>
-        <div id="badgesArea" class="badges"></div>
+      <!-- Feedback Tab -->
+      <div id="tab-feedback" class="tab hidden">
+        <h2>Feedback</h2>
+        <textarea id="feedbackText" rows="5" style="width:100%;padding:8px;border-radius:8px;background:#0b1220;color:var(--text)"></textarea>
+        <div style="margin-top:8px">
+          <button id="sendFeedback" class="btn primary">Send feedback</button>
+        </div>
       </div>
     </section>
 
-    <!-- Feedback -->
-    <section id="feedback" class="panel card hidden">
-      <h2>Feedback</h2>
-      <textarea id="feedbackText" placeholder="Share ideas or issues..."></textarea>
-      <div class="row" style="margin-top:8px">
-        <button id="sendFeedback" class="btn btn-primary">Send Feedback</button>
-        <div class="small muted">Developer: <span id="devEmail">your-email@example.com</span></div>
-      </div>
-    </section>
+    <footer style="text-align:center;margin-top:12px;color:var(--muted)">
+      Made with ❤️ — Smart Study Companion · Works offline after first load
+    </footer>
+  </div>
 
-    <footer class="footer small muted card">Made with ❤️ — Smart Study Companion</footer>
-  </main>
-
-  <!-- Libraries (loaded early) -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" crossorigin="anonymous"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.min.js" crossorigin="anonymous"></script>
-  <script>if(window.pdfjsLib) { pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.worker.min.js'; }</script>
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
-
-  <!-- Main logic -->
+  <!-- Main app script (we will provide full app.js next) -->
   <script src="app.js"></script>
 </body>
 </html>
