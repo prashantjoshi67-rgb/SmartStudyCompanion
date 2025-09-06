@@ -1,3 +1,4 @@
+<!-- START OF FILE: index.html -->
 <!doctype html>
 <html lang="en">
 <head>
@@ -5,168 +6,220 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Smart Study Companion</title>
 
-  <!-- Link to external CSS (we will provide style.css next) -->
+  <!-- Primary stylesheet -->
   <link rel="stylesheet" href="style.css">
 
-  <!-- PDF.js from CDN -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.min.js" crossorigin="anonymous"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.worker.min.js" crossorigin="anonymous"></script>
-
-  <!-- Tesseract.js (OCR) -->
-  <script src="https://unpkg.com/tesseract.js@v4.1.1/dist/tesseract.min.js"></script>
-
-  <!-- small helper style to ensure page isn't totally raw if CSS missing -->
-  <style>
-    :root{--bg:#081219;--card:#0f1b25;--accent:#2bd37a;--muted:#9aa4b2;--text:#e6eef6}
-    html,body{height:100%;margin:0;font-family:Inter,Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
-    .container{max-width:980px;margin:12px auto;padding:12px}
-    .card{background:var(--card);padding:14px;border-radius:12px;margin-bottom:12px}
-    .row{display:flex;gap:8px;flex-wrap:wrap}
-    .btn{background:#2a3742;color:var(--text);padding:10px 14px;border-radius:10px;border:none;cursor:pointer}
-    .btn.primary{background:var(--accent);color:#042018}
-    .select, input[type="text"]{padding:10px;border-radius:8px;border:1px solid #202733;background:#0b1220;color:var(--text)}
-    h1{margin:0 0 8px 0}
-    .notice{color:var(--muted);font-size:13px;margin-top:6px}
-    .hidden{display:none}
-    .library-item{border-top:1px dashed #24303a;padding:10px 0}
-    label.checkbox{display:flex;align-items:center;gap:8px}
-    .badge{display:inline-block;padding:6px 10px;border-radius:12px;background:#123;color:var(--text)}
-  </style>
+  <!-- Small inline helpful note for debugging (remove in final) -->
+  <meta name="description" content="Smart Study Companion — offline-first study helper." />
 </head>
 <body>
   <div class="container">
-    <header class="card">
+    <header class="header">
       <h1>Smart Study Companion</h1>
-      <div class="notice">Offline-first · Local processing</div>
-      <div style="float:right" id="status">Status: <strong id="statusText">Demo</strong></div>
-      <div style="clear:both"></div>
+      <div class="status" id="status">Status: <span id="statusText">Demo</span></div>
     </header>
 
-    <!-- Controls -->
-    <section class="card" id="controls">
-      <div>
-        <label>Name</label><br>
-        <input id="studentName" type="text" placeholder="Your name" />
-        <button id="saveName" class="btn primary">Save</button>
-      </div>
+    <!-- --- START: Controls card --- -->
+    <section class="card controls-card" aria-label="Start · Load material">
+      <h2>Start · Load material</h2>
 
-      <div style="margin-top:10px">
-        <label>Voice</label><br>
-        <select id="voiceSelect" class="select"></select>
+      <!-- 1) Name -->
+      <label for="name">Name</label>
+      <input id="name" type="text" placeholder="Your name" value="" />
+      <button class="btn btn-primary" id="saveName">Save</button>
+
+      <!-- Voice controls -->
+      <div class="row">
+        <label for="voiceSelect">Voice</label>
+        <select id="voiceSelect" aria-label="Voice select">
+          <!-- voice list will be populated by app.js -->
+        </select>
         <button id="enableVoice" class="btn">Enable</button>
       </div>
 
-      <div style="margin-top:10px">
-        <label>Mode</label><br>
-        <select id="modeSelect" class="select">
-          <option value="normal">Normal</option>
+      <!-- Mode (KBC/Game / Normal / Silent) -->
+      <div class="row">
+        <label for="modeSelect">Mode</label>
+        <select id="modeSelect">
           <option value="kbc">KBC (Game)</option>
+          <option value="normal">Normal</option>
+          <option value="silent">Silent</option>
         </select>
       </div>
 
-      <div style="margin-top:10px">
-        <label>License</label><br>
-        <input id="licenseKey" type="text" placeholder="Enter license" />
-        <button id="applyLicense" class="btn">Apply</button>
-      </div>
+      <!-- License -->
+      <label for="license">License</label>
+      <input id="license" type="text" placeholder="License key" value="" />
+      <button id="applyLicense" class="btn">Apply</button>
 
-      <div style="margin-top:10px">
-        <label>Files</label><br>
+      <!-- File input -->
+      <div class="row file-row">
+        <label for="fileInput">Files</label>
         <input id="fileInput" type="file" accept=".pdf,.txt,.html,.zip,.jpg,.png" multiple />
-        <button id="processBtn" class="btn primary">Process</button>
-        <div class="notice">Accepted: PDF / TXT / HTML / JPG / PNG / ZIP (auto-unpacks). Demo upload limit ~50MB; full mode supports larger uploads.</div>
+        <button id="processBtn" class="btn btn-primary">Process</button>
       </div>
+
+      <!-- Delete all library -->
+      <div class="row">
+        <button id="deleteAll" class="btn danger">Delete all files</button>
+      </div>
+
+      <p class="note">Accepted: PDF / TXT / HTML / JPG / PNG / ZIP (auto-unpacks). Demo upload limit ~50MB; full mode supports larger files.</p>
     </section>
+    <!-- --- END: Controls card --- -->
 
-    <!-- Tabs -->
-    <section class="card">
-      <div class="row" style="margin-bottom:12px">
-        <button class="btn" data-tab="library">Library</button>
-        <button class="btn" data-tab="summaries">Summaries</button>
-        <button class="btn" data-tab="quiz">Quiz</button>
-        <button class="btn" data-tab="manage">Manage</button>
-        <button class="btn" data-tab="settings">Settings</button>
-        <button class="btn" data-tab="feedback">Feedback</button>
+    <!-- --- START: Navigation tabs --- -->
+    <nav class="tabs" role="tablist" aria-label="Main tabs">
+      <button class="tab" data-tab="library">Library</button>
+      <button class="tab" data-tab="summaries">Summaries</button>
+      <button class="tab" data-tab="quiz">Quiz</button>
+      <button class="tab" data-tab="manage">Manage</button>
+      <button class="tab" data-tab="settings">Settings</button>
+      <button class="tab" data-tab="feedback">Feedback</button>
+      <button class="tab" data-tab="help">Help</button>
+    </nav>
+    <!-- --- END: Navigation tabs --- -->
+
+    <!-- --- START: Library panel --- -->
+    <section id="panel-library" class="panel active">
+      <h2>Current library</h2>
+      <ul id="libraryList" class="library-list" aria-live="polite">
+        <!-- populated by app.js -->
+      </ul>
+    </section>
+    <!-- --- END: Library panel --- -->
+
+    <!-- --- START: Summaries panel --- -->
+    <section id="panel-summaries" class="panel">
+      <h2>Summaries</h2>
+      <div class="controls">
+        <button id="quickSummary" class="btn">Quick</button>
+        <button id="detailedSummary" class="btn">Detailed</button>
+        <button id="readSummary" class="btn">Read</button>
+        <button id="createMCQs" class="btn">Create MCQs</button>
       </div>
-
-      <!-- Library Tab -->
-      <div id="tab-library" class="tab">
-        <h2>Library</h2>
-        <div id="libraryList"></div>
-        <div style="margin-top:8px">
-          <button id="selectAll" class="btn">Select all</button>
-          <button id="deleteSelected" class="btn">Delete selected</button>
-          <button id="deleteAll" class="btn">Delete all</button>
-        </div>
+      <div id="summaryOutput" class="outputbox" aria-live="polite">
+        <!-- summaries will appear here -->
       </div>
+      <p class="note" id="ocrNote">(If PDF extraction failed: maybe image-based PDF; OCR required. Choose OCR language in Settings and re-process.)</p>
+    </section>
+    <!-- --- END: Summaries panel --- -->
 
-      <!-- Summaries Tab -->
-      <div id="tab-summaries" class="tab hidden">
-        <h2>Summaries</h2>
-        <div class="row" style="margin-bottom:8px">
-          <button id="quickSummary" class="btn">Quick</button>
-          <button id="detailedSummary" class="btn">Detailed</button>
-          <button id="readSummary" class="btn">Read</button>
-          <button id="createMCQs" class="btn">Create MCQs</button>
-        </div>
-        <div id="summaryOutput" class="card" style="min-height:120px">(no material)</div>
-      </div>
-
-      <!-- Quiz Tab -->
-      <div id="tab-quiz" class="tab hidden">
-        <h2>Quiz</h2>
-        <div class="row" style="margin-bottom:8px">
-          <select id="quizType" class="select">
-            <option value="mcq">MCQ (4 choices)</option>
-            <option value="tf">True/False</option>
-            <option value="short">Short answer</option>
-          </select>
-          <select id="quizTimer" class="select">
-            <option value="none">No timer</option>
-            <option value="30">30s/question</option>
-          </select>
-          <button id="generateQuiz" class="btn primary">Generate</button>
-          <button id="readQuiz" class="btn">Read</button>
-        </div>
-        <div id="quizOutput" class="card" style="min-height:160px">Quiz appears here...</div>
-      </div>
-
-      <!-- Manage Tab -->
-      <div id="tab-manage" class="tab hidden">
-        <h2>Manage</h2>
-        <div id="manageArea" class="card">Upload syllabus JSON, backups, or view logs.</div>
-      </div>
-
-      <!-- Settings Tab -->
-      <div id="tab-settings" class="tab hidden">
-        <h2>Settings / OCR</h2>
-        <label>OCR language</label><br>
-        <select id="ocrLang" class="select">
-          <option value="eng">English (eng)</option>
-          <option value="eng+hin">English + Hindi</option>
-          <option value="hin">Hindi (hin)</option>
-          <option value="mar">Marathi (mar)</option>
-          <option value="guj">Gujarati (guj)</option>
+    <!-- --- START: Quiz panel --- -->
+    <section id="panel-quiz" class="panel">
+      <h2>Quiz</h2>
+      <div class="row">
+        <label for="quizType">Type</label>
+        <select id="quizType">
+          <option value="mcq4">MCQ (4 choices)</option>
+          <option value="truefalse">True/False</option>
+          <option value="short">Short answer</option>
         </select>
-        <div class="notice">Tip: OCR is CPU-heavy on mobile. Prefer desktop for large batches.</div>
+
+        <label for="quizTimer">Timer</label>
+        <select id="quizTimer">
+          <option value="0">No timer</option>
+          <option value="30">30s</option>
+          <option value="60">60s</option>
+        </select>
       </div>
 
-      <!-- Feedback Tab -->
-      <div id="tab-feedback" class="tab hidden">
-        <h2>Feedback</h2>
-        <textarea id="feedbackText" rows="5" style="width:100%;padding:8px;border-radius:8px;background:#0b1220;color:var(--text)"></textarea>
-        <div style="margin-top:8px">
-          <button id="sendFeedback" class="btn primary">Send feedback</button>
-        </div>
+      <div class="controls">
+        <button id="generateQuiz" class="btn btn-primary">Generate</button>
+        <button id="readQuiz" class="btn">Read</button>
+        <button id="copyQuiz" class="btn">Copy</button>
+      </div>
+
+      <div id="quizOutput" class="outputbox" aria-live="polite">Quiz appears here...</div>
+    </section>
+    <!-- --- END: Quiz panel --- -->
+
+    <!-- --- START: Manage panel --- -->
+    <section id="panel-manage" class="panel">
+      <h2>Manage</h2>
+      <p>Manage your uploads, syllabus maps and backups.</p>
+      <div class="row">
+        <button id="exportBackup" class="btn">Backup</button>
+        <button id="importBackup" class="btn">Restore</button>
+      </div>
+      <div class="note">Select files in Library to delete or restore.</div>
+    </section>
+    <!-- --- END: Manage panel --- -->
+
+    <!-- --- START: Settings / OCR panel --- -->
+    <section id="panel-settings" class="panel">
+      <h2>Settings / OCR</h2>
+      <div class="row">
+        <label for="ocrLang">OCR language</label>
+        <select id="ocrLang">
+          <option value="eng">English</option>
+          <option value="hin">Hindi</option>
+          <option value="eng+hin">Eng+Hin</option>
+          <option value="mar">Marathi</option>
+          <option value="guj">Gujarati</option>
+        </select>
+        <button id="ocrHelp" class="btn">Help</button>
+      </div>
+      <p class="note">Tip: OCR is CPU-heavy on mobile — prefer desktop for large batches. You can download worker files for extra languages in Manage.</p>
+    </section>
+    <!-- --- END: Settings panel --- -->
+
+    <!-- --- START: Feedback & Help panels --- -->
+    <section id="panel-feedback" class="panel">
+      <h2>Feedback</h2>
+      <p>Send feedback (displayed email is editable in app):</p>
+      <div class="row">
+        <input id="feedbackEmail" type="email" placeholder="your-email@example.com" />
+        <button id="sendFeedback" class="btn">Send</button>
       </div>
     </section>
 
-    <footer style="text-align:center;margin-top:12px;color:var(--muted)">
-      Made with ❤️ — Smart Study Companion · Works offline after first load
+    <section id="panel-help" class="panel">
+      <h2>Help</h2>
+      <p>Quick tips and user manual links.</p>
+      <a id="userManual" href="manuals/User_Manual.html" target="_blank">Open User Manual</a>
+    </section>
+    <!-- --- END: Feedback & Help panels --- -->
+
+    <footer class="footer">
+      <small>Made with ❤️ — Smart Study Companion · Works offline after first load.</small>
     </footer>
   </div>
 
-  <!-- Main app script (we will provide full app.js next) -->
+  <!-- CDN libraries (required) -->
+  <!-- JSZip (for ZIP unpacking) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" crossorigin="anonymous"></script>
+
+  <!-- PDF.js (text extraction) + worker. Ensure version matches what app.js expects -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.worker.min.js" crossorigin="anonymous"></script>
+
+  <!-- Tesseract.js (for OCR) -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.1.3/dist/tesseract.min.js" crossorigin="anonymous"></script>
+
+  <!-- Main app logic (must match the file you committed) -->
   <script src="app.js"></script>
+
+  <!-- Inline helper to wire tabs quickly if app.js didn't -->
+  <script>
+    (function () {
+      // Basic tab wiring (app.js may replace this)
+      const tabs = document.querySelectorAll('.tab');
+      const panels = document.querySelectorAll('.panel');
+      tabs.forEach(t=>t.addEventListener('click', ()=> {
+        const tab = t.getAttribute('data-tab');
+        panels.forEach(p=>p.classList.remove('active'));
+        document.getElementById('panel-'+tab).classList.add('active');
+        tabs.forEach(x=>x.classList.remove('active'));
+        t.classList.add('active');
+      }));
+      // show default (library)
+      document.querySelector('.tab[data-tab="library"]').classList.add('active');
+      document.getElementById('panel-library').classList.add('active');
+    })();
+  </script>
+
+  <!-- END -->
+  <!-- === END OF FILE: index.html === -->
 </body>
 </html>
