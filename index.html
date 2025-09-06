@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Smart Study Companion</title>
+  <link rel="stylesheet" href="style.css" />
+  <meta name="description" content="Smart Study Companion — summaries, quizzes, OCR, voice, targets & badges" />
+</head>
+<body>
+  <header class="topbar card">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <div>
+        <h1 style="margin:0">Smart Study Companion</h1>
+        <div class="small muted">Offline-first • Local processing</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <div class="small muted">Status: <span id="licenseStatus">Demo mode</span></div>
+    </div>
+  </header>
+
+  <main class="container">
+
+    <!-- Controls -->
+    <section class="card">
+      <div class="row">
+        <label style="min-width:90px">Name</label>
+        <input id="userName" type="text" placeholder="Your name" />
+        <button id="saveName" class="btn btn-primary">Save</button>
+      </div>
+
+      <div class="row">
+        <label style="min-width:90px">Voice</label>
+        <select id="voiceSelect"></select>
+        <button id="enableVoice" class="btn">Enable</button>
+      </div>
+
+      <div class="row">
+        <label style="min-width:90px">Mode</label>
+        <select id="modeSelect">
+          <option value="normal">Normal</option>
+          <option value="kbc">KBC (Game)</option>
+          <option value="silent">Silent</option>
+        </select>
+      </div>
+
+      <div class="row">
+        <label style="min-width:90px">License</label>
+        <input id="licenseKey" placeholder="Enter license key" />
+        <button id="applyLicense" class="btn">Apply</button>
+      </div>
+
+      <div class="row">
+        <label style="min-width:90px">Files</label>
+        <input id="fileInput" type="file" multiple accept=".pdf,.zip,.txt,.html,.htm,.jpg,.jpeg,.png" />
+        <button id="processFiles" class="btn btn-primary">Process</button>
+      </div>
+
+      <div class="small note">Accepted: PDF / TXT / HTML / JPG / PNG / ZIP (auto-unpacks). Demo upload limit ~50MB; full mode supports larger files.</div>
+    </section>
+
+    <!-- Tabs -->
+    <nav class="tabs">
+      <button class="tab active" data-tab="library">Library</button>
+      <button class="tab" data-tab="summaries">Summaries</button>
+      <button class="tab" data-tab="quiz">Quiz</button>
+      <button class="tab" data-tab="manage">Manage</button>
+      <button class="tab" data-tab="settings">Settings</button>
+      <button class="tab" data-tab="feedback">Feedback</button>
+    </nav>
+
+    <!-- Library -->
+    <section id="library" class="panel card">
+      <h2>Library</h2>
+      <div id="libraryList" class="list"></div>
+    </section>
+
+    <!-- Summaries -->
+    <section id="summaries" class="panel card hidden">
+      <h2>Summaries</h2>
+      <div class="controls-inline">
+        <button id="quickSummary" class="btn">Quick</button>
+        <button id="detailedSummary" class="btn">Detailed</button>
+        <button id="readSummary" class="btn">Read</button>
+      </div>
+      <div id="summaryOutput" class="output">(Summaries appear here)</div>
+    </section>
+
+    <!-- Quiz -->
+    <section id="quiz" class="panel card hidden">
+      <h2>Quiz</h2>
+      <div class="row">
+        <label style="min-width:90px">Quiz type</label>
+        <select id="quizType">
+          <option>MCQ (4 choices)</option>
+          <option>Short answer</option>
+        </select>
+        <label style="min-width:80px">Timer</label>
+        <select id="quizTimer">
+          <option>No timer</option>
+          <option>10</option>
+          <option>30</option>
+        </select>
+        <button id="generateQuiz" class="btn btn-primary">Generate</button>
+        <button id="readQuiz" class="btn">Read</button>
+      </div>
+      <div id="quizOutput" class="output">(Quiz appears here)</div>
+    </section>
+
+    <!-- Manage -->
+    <section id="manage" class="panel card hidden">
+      <h2>Manage / Backup</h2>
+      <div class="row">
+        <button id="backupBtn" class="btn">Backup (download)</button>
+        <input id="restoreFile" type="file" accept=".json" />
+        <button id="restoreBtn" class="btn">Restore</button>
+        <button id="clearAll" class="btn btn-danger">Delete all</button>
+      </div>
+
+      <h3>Collections</h3>
+      <div id="collectionsList" class="list"></div>
+    </section>
+
+    <!-- Settings -->
+    <section id="settings" class="panel card hidden">
+      <h2>Settings & OCR</h2>
+      <div class="row">
+        <label style="min-width:90px">OCR language</label>
+        <select id="ocrLang">
+          <option value="eng">English</option>
+          <option value="hin">Hindi</option>
+          <option value="mar">Marathi</option>
+          <option value="eng+hin">Eng + Hin</option>
+        </select>
+        <button id="loadOCR" class="btn">Load OCR</button>
+      </div>
+
+      <div class="row">
+        <label style="min-width:90px">Daily target</label>
+        <input id="dailyTarget" type="number" min="1" value="20" />
+        <button id="setTarget" class="btn">Set</button>
+      </div>
+
+      <div id="progressBox" class="card">
+        <div>Today's progress: <span id="todayCount">0</span>/<span id="todayTarget">20</span></div>
+        <div>Streak days: <span id="streak">0</span></div>
+        <div id="badgesArea" class="badges"></div>
+      </div>
+    </section>
+
+    <!-- Feedback -->
+    <section id="feedback" class="panel card hidden">
+      <h2>Feedback</h2>
+      <textarea id="feedbackText" placeholder="Share ideas or issues..."></textarea>
+      <div class="row" style="margin-top:8px">
+        <button id="sendFeedback" class="btn btn-primary">Send Feedback</button>
+        <div class="small muted">Developer: <span id="devEmail">your-email@example.com</span></div>
+      </div>
+    </section>
+
+    <footer class="footer small muted card">Made with ❤️ — Smart Study Companion</footer>
+  </main>
+
+  <!-- Libraries (loaded early) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.min.js" crossorigin="anonymous"></script>
+  <script>if(window.pdfjsLib) { pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.worker.min.js'; }</script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
+
+  <!-- Main logic -->
+  <script src="app.js"></script>
+</body>
+</html>
