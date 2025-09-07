@@ -1,776 +1,595 @@
-/* === START OF FILE: app.js ===
-   Smart Study Companion - Full app.js (integrated)
-   Version: v5 (license badge + FULL-ACCESS client gating)
-   Replace existing app.js fully with this content.
+/* app.js
+   Smart Study Companion - improved single-file app logic
+   - Demo / Full access license
+   - PDF extraction using pdf.js with Tesseract.js OCR fallback
+   - Voice: browser TTS + playback of user-uploaded audio samples
+   - KBC mode + general quiz (OpenTDB) integration
+   - Targets & badges
+   NOTE: This is client-side only. Large OCR jobs are CPU & memory heavy on mobile.
 */
 
-/* global pdfjsLib, Tesseract, JSZip */
+/* ===========================
+   Configuration & constants
+   =========================== */
+const STORAGE_KEY = 'ssc_state_v2';
+const DEMO_LICENSE = 'DEMO';
+const FULL_LICENSE_KEY = 'FULL-ACCESS'; // user types this to unlock
+const TESS_LANG_PATH = 'https://tessdata.projectnaptha.com/4.0.0'; // public tessdata CDN
+const OPENTDB_API = 'https://opentdb.com/api.php'; // public trivia API
 
-'use strict';
-
-/* ---------- Utilities, state and storage ---------- */
-const $ = id => document.getElementById(id);
-
-const STORAGE_KEY = 'ssc_v5_state';
-const APP_VERSION = '1.0.0';
-
+/* ===========================
+   App state
+   =========================== */
 let state = {
-  user: { name: '' },
-  license: 'DEMO',
+  name: '',
+  license: DEMO_LICENSE,
   isPremium: false,
-  voice: { enabled: false, name: null, rate: 1.0, pitch: 1.0 },
-  appearance: { preset: 'dark', vars: null },
-  ocrLang: 'eng',
-  library: [],
-  badges: [],
-  targets: { daily: 20 },
-  lastProcessedAt: null,
-  settings: { timeoutBehavior: 'skip' } // default: skip on timeout
+  voiceEnabled: false,
+  voiceSampleURL: null, // user-uploaded voice audio (playback only)
+  library: [], // {id,name,text,added,sourceFileName}
+  badges: {}, // { badgeId: {title,awardedAt} }
+  dailyTarget: 20,
+  dailyProgress: 0,
+  ocrLang: 'eng', // default Tesseract language
+  lastProcessedAt: null
 };
 
-function saveState() {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) { console.warn('saveState', e); }
-}
+function saveState() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
 function loadState() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) state = Object.assign(state, JSON.parse(raw));
-  } catch (e) { console.warn('loadState', e); }
-}
-loadState();
-
-function setStatus(msg) {
-  const s = $('statusText');
-  if (s) s.innerText = msg || 'Ready';
+  const s = localStorage.getItem(STORAGE_KEY);
+  if (s) {
+    try { Object.assign(state, JSON.parse(s)); }
+    catch(e){ console.warn('failed to parse state', e); }
+  }
 }
 
-/* ---------- Multilingual label helper ---------- */
-const LABELS = {
-  testVoice: { en: 'Test Voice', hi: 'वॉइस टेस्ट', mr: 'वॉइस चाचणी' },
-  enableVoice: { en: 'Enable Voice', hi: 'वॉइस चालू', mr: 'वॉइस सुरू करा' },
-  timer: { en: 'Timer', hi: 'टाइमर', mr: 'टायमर' }
-};
-function triple(key) {
-  const t = LABELS[key];
-  if (!t) return key;
-  return `${t.en} — ${t.hi} — ${t.mr}`;
-}
+/* ===========================
+   Utility
+   =========================== */
+const $ = id => document.getElementById(id);
+const formatDate = ts => new Date(ts).toLocaleString();
+function uid(prefix='id'){ return prefix + Math.random().toString(36).slice(2,9); }
+function setStatus(msg){ const s=$('statusLine'); if(s) s.textContent = msg; console.log('STATUS:', msg); }
 
-/* ---------- Voice Manager (TTS) ---------- */
-const VoiceManager = (function(){
-  const vm = { voices: [], preferred: null, name: state.voice.name||null, enabled: !!state.voice.enabled, rate: state.voice.rate||1, pitch: state.voice.pitch||1 };
-
-  function loadVoices() {
-    if (!('speechSynthesis' in window)) return;
-    vm.voices = window.speechSynthesis.getVoices() || [];
-    vm.preferred = findIndian(vm.voices);
-    if (vm.name) {
-      const found = vm.voices.find(v => v.name === vm.name);
-      if (found) vm.preferred = found;
-    }
-    populateSelect();
-  }
-
-  function findIndian(list) {
-    if (!list || !list.length) return null;
-    let v = list.find(x => /^en[-_]?IN$/i.test(x.lang) || /^hi[-_]?IN$/i.test(x.lang) || /india|indian/i.test(x.name));
-    if (v) return v;
-    v = list.find(x => /^en/i.test(x.lang));
-    if (v) return v;
-    return list[0];
-  }
-
-  function populateSelect() {
-    const sel = $('voiceSelect');
-    if (!sel) return;
-    sel.innerHTML = '';
-    vm.voices.forEach(v => {
-      const o = document.createElement('option');
-      o.value = v.name;
-      o.textContent = `${v.name} (${v.lang})`;
-      sel.appendChild(o);
-    });
-    if (vm.name) sel.value = vm.name;
-    else if (vm.preferred) sel.value = vm.preferred.name;
-    sel.onchange = () => {
-      vm.name = sel.value;
-      state.voice.name = vm.name;
-      saveState();
-    };
-  }
-
-  function setEnabled(flag) {
-    vm.enabled = !!flag;
-    state.voice.enabled = vm.enabled;
-    saveState();
-  }
-
-  function speak(text, opts={}) {
-    if (!vm.enabled) return;
-    if (!('speechSynthesis' in window)) return;
-    try {
-      window.speechSynthesis.cancel();
-      const utt = new SpeechSynthesisUtterance(text);
-      let voice = null;
-      if (vm.name) voice = vm.voices.find(v => v.name === vm.name);
-      if (!voice) voice = vm.preferred;
-      if (voice) utt.voice = voice;
-      utt.rate = (opts.rate || vm.rate || 1.0);
-      utt.pitch = (opts.pitch || vm.pitch || 1.0);
-      if (opts.lang) utt.lang = opts.lang;
-      window.speechSynthesis.speak(utt);
-    } catch (e) { console.warn('speak error', e); }
-  }
-
-  function test() {
-    setStatus('Testing voice...');
-    speak('Welcome to Smart Study Companion');
-    setTimeout(()=> speak('नमस्कार, आप कैसे हैं?'), 1400);
-  }
-
-  function init() {
-    try {
-      loadVoices();
-      if (typeof speechSynthesis !== 'undefined') {
-        speechSynthesis.onvoiceschanged = loadVoices;
-      }
-      const btn = $('enableVoice');
-      if (btn) {
-        btn.textContent = vm.enabled ? triple('enableVoice')+' : ON' : triple('enableVoice')+' : OFF';
-        btn.onclick = () => {
-          vm.enabled = !vm.enabled;
-          state.voice.enabled = vm.enabled;
-          saveState();
-          btn.textContent = vm.enabled ? triple('enableVoice')+' : ON' : triple('enableVoice')+' : OFF';
-          if (vm.enabled) speak('Voice enabled');
-        };
-      }
-      const testBtn = $('testVoice');
-      if (testBtn) testBtn.textContent = triple('testVoice');
-      if (testBtn) testBtn.onclick = () => test();
-      const rateEl = $('voiceRate'); const pitchEl = $('voicePitch');
-      if (rateEl) rateEl.onchange = ()=> { vm.rate = parseFloat(rateEl.value||1); state.voice.rate = vm.rate; saveState(); }
-      if (pitchEl) pitchEl.onchange = ()=> { vm.pitch = parseFloat(pitchEl.value||1); state.voice.pitch = vm.pitch; saveState(); }
-    } catch (e) { console.warn('Voice init', e); }
-  }
-
-  return { init, speak, test, setEnabled, getVoices: ()=>vm.voices, getPreferred: ()=>vm.preferred };
-})();
-
-/* ---------- Appearance manager ---------- */
-const Appearance = (function(){
-  function applyVars(vars) {
-    const root = document.documentElement;
-    if (!vars) return;
-    if (vars.bg) root.style.setProperty('--bg', vars.bg);
-    if (vars.accent) root.style.setProperty('--accent', vars.accent);
-    if (vars.text) root.style.setProperty('--text', vars.text);
-    if (vars.fontSize) root.style.setProperty('--font-size', vars.fontSize);
-  }
-  function setPreset(p) {
-    if (p === 'vibrant') document.documentElement.setAttribute('data-theme','vibrant');
-    else if (p === 'light') document.documentElement.setAttribute('data-theme','light');
-    else document.documentElement.removeAttribute('data-theme');
-    state.appearance.preset = p;
-    saveState();
-  }
-  function load() {
-    const a = state.appearance;
-    if (a && a.preset) setPreset(a.preset);
-    if (a && a.vars) applyVars(a.vars);
-  }
-  function initControls() {
-    const preset = $('themePreset');
-    if (!preset) return;
-    preset.onchange = ()=> setPreset(preset.value);
-    const apply = $('applyTheme'); if (apply) apply.onclick = ()=> {
-      const vars = { bg: $('bgColor')?.value, accent: $('accentColor')?.value, text: $('textColor')?.value, fontSize: $('fontSize')?.value };
-      applyVars(vars); state.appearance.vars = vars; saveState(); setStatus('Appearance applied');
-    };
-    const reset = $('resetTheme'); if (reset) reset.onclick = ()=> { document.documentElement.removeAttribute('data-theme'); state.appearance = { preset:'dark', vars:null }; saveState(); setStatus('Appearance reset'); };
-  }
-  return { load, initControls };
-})();
-
-/* ---------- OCR & PDF extraction (pdf.js + Tesseract fallback) ---------- */
-
-async function extractTextFromPdfArrayBuffer(ab, onProgress) {
-  if (!window.pdfjsLib) throw new Error('pdfjsLib not loaded');
-  const loadingTask = pdfjsLib.getDocument({ data: ab });
-  const pdf = await loadingTask.promise;
-  const numPages = pdf.numPages;
-  let allText = '';
-
-  // Fast attempt: page.getTextContent()
-  for (let p = 1; p <= numPages; p++) {
-    const page = await pdf.getPage(p);
-    try {
-      const content = await page.getTextContent();
-      const pageText = (content.items || []).map(i => i.str || '').join(' ').trim();
-      if (pageText) allText += pageText + '\n\n';
-    } catch (e) {
-      console.warn('textContent error page', p, e);
-    }
-    if (typeof onProgress === 'function') onProgress({ stage:'pdf_text', page:p, total:numPages });
-  }
-
-  if (allText.trim().length > 40) {
-    return { success: true, text: allText.trim(), pages: numPages, usedOCR: false };
-  }
-
-  // Fallback to OCR using Tesseract.js
-  if (!window.Tesseract) return { success:false, text:'', pages:numPages, usedOCR:false, message:'Tesseract not available' };
-
-  const worker = Tesseract.createWorker({
-    logger: m => {
-      if (m && m.status && m.progress) {
-        if (typeof onProgress === 'function') onProgress({ stage:'ocr', status:m.status, progress:m.progress });
-      }
-    }
-  });
-
-  await worker.load();
-  const ocrLang = state.ocrLang || 'eng';
-  try {
-    await worker.loadLanguage(ocrLang);
-    await worker.initialize(ocrLang);
-  } catch (e) {
-    console.warn('Tesseract language load/init failed', e);
-    try { await worker.loadLanguage('eng'); await worker.initialize('eng'); } catch(e2){ console.warn('fallback eng failed', e2); }
-  }
-
-  const MAX_OCR_PAGES = 25;
-  const pagesToDo = Math.min(numPages, MAX_OCR_PAGES);
-  let ocrText = '';
-  for (let p = 1; p <= pagesToDo; p++) {
-    const page = await pdf.getPage(p);
-    const viewport = page.getViewport({ scale: 2.0 });
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.floor(viewport.width);
-    canvas.height = Math.floor(viewport.height);
-    const ctx = canvas.getContext('2d');
-    try { await page.render({ canvasContext: ctx, viewport }).promise; } catch(e) { console.warn('page render error', e); }
-    const blob = await new Promise(res => canvas.toBlob(res, 'image/png', 0.9));
-    if (!blob) { console.warn('canvas.toBlob returned null on page', p); continue; }
-    try {
-      const { data } = await worker.recognize(blob);
-      if (data && data.text) ocrText += data.text + '\n\n';
-    } catch (e) { console.warn('tesseract recognize error', e); }
-    canvas.width = 0; canvas.height = 0;
-    if (typeof onProgress === 'function') onProgress({ stage:'ocr_page', page:p, total:pagesToDo });
-  }
-
-  await worker.terminate();
-
-  if (ocrText.trim().length > 10) {
-    return { success: true, text: ocrText.trim(), pages: numPages, usedOCR: true };
+/* ===========================
+   License / demo / premium
+   =========================== */
+function renderLicenseUI(){
+  const badge = $('licenseBadge');
+  if(!badge) return;
+  if(state.isPremium){
+    badge.className = 'badge premium';
+    badge.textContent = 'FULL ACCESS';
   } else {
-    return { success: false, text: '', pages: numPages, usedOCR: true, message: 'OCR returned no text' };
+    badge.className = 'badge demo';
+    badge.textContent = 'DEMO VERSION';
+  }
+  $('license').value = state.license || '';
+}
+function applyLicense(key){
+  const val = String(key || '').trim().toUpperCase();
+  if(val === FULL_LICENSE_KEY){
+    state.license = val;
+    state.isPremium = true;
+    saveState();
+    renderLicenseUI();
+    setStatus('Full access enabled');
+    speak('Full access enabled');
+    awardBadge('power-user','Full Access');
+  } else {
+    state.license = val || DEMO_LICENSE;
+    state.isPremium = false;
+    saveState();
+    renderLicenseUI();
+    setStatus('Demo / invalid license applied');
   }
 }
 
-async function processBlobAsDocument(blob, nameHint, onProgress) {
-  const entry = { name: nameHint || (blob && blob.name) || 'file', type: blob && blob.type || '', added: new Date().toISOString(), text: '', subject:'', chapter:'' };
-  try {
-    const lower = (entry.name || '').toLowerCase();
-    if (lower.endsWith('.zip')) {
-      if (!window.JSZip) { return entry; }
-      const zip = await JSZip.loadAsync(blob);
-      for (const fname of Object.keys(zip.files)) {
-        const f = zip.files[fname];
-        if (f.dir) continue;
-        const innerBlob = await f.async('blob');
-        const innerEntry = await processBlobAsDocument(innerBlob, fname, onProgress);
-        if (innerEntry) state.library.push(innerEntry);
-      }
-      saveState();
-      return null;
+/* ===========================
+   Voice / TTS / user sample
+   =========================== */
+const Voice = {
+  synth: window.speechSynthesis,
+  voices: [],
+  init(){
+    this.refresh();
+    if(this.synth) this.synth.onvoiceschanged = ()=>this.refresh();
+  },
+  refresh(){
+    this.voices = this.synth ? this.synth.getVoices() : [];
+    const sel = $('voiceSelect');
+    if(!sel) return;
+    sel.innerHTML = '';
+    this.voices.forEach(v=>{
+      const opt = document.createElement('option');
+      opt.value = v.name + '||' + v.lang;
+      opt.textContent = `${v.name} (${v.lang})`;
+      sel.appendChild(opt);
+    });
+    // try select a likely Indian voice
+    for(let i=0;i<sel.options.length;i++){
+      if(/(India|IN|en-IN|hi-IN)/i.test(sel.options[i].text)){ sel.selectedIndex = i; break; }
     }
-
-    if (lower.endsWith('.pdf') || blob.type === 'application/pdf') {
-      const ab = await blob.arrayBuffer();
-      const res = await extractTextFromPdfArrayBuffer(ab, onProgress);
-      if (res && res.success && res.text) { entry.text = res.text; return entry; }
-      entry.text = (res && res.text) ? res.text : '';
-      return entry;
+  },
+  speak(text, opts={}){
+    if(!state.voiceEnabled) return;
+    if(!this.synth) return console.warn('No speechSynthesis');
+    const ut = new SpeechSynthesisUtterance(text);
+    const sel = $('voiceSelect').value;
+    if(sel){
+      const vname = sel.split('||')[0];
+      const voice = this.voices.find(v=>v.name===vname);
+      if(voice) ut.voice = voice;
     }
-
-    if (blob.type && blob.type.startsWith('image/')) {
-      if (!window.Tesseract) { entry.text = ''; return entry; }
-      const worker = Tesseract.createWorker();
-      await worker.load();
-      try {
-        await worker.loadLanguage(state.ocrLang || 'eng');
-        await worker.initialize(state.ocrLang || 'eng');
-      } catch(e){ try { await worker.loadLanguage('eng'); await worker.initialize('eng'); } catch(e2){} }
-      const { data } = await worker.recognize(blob);
-      entry.text = data && data.text ? data.text.trim() : '';
-      await worker.terminate();
-      return entry;
-    }
-
-    try {
-      const txt = await blob.text();
-      entry.text = txt;
-      return entry;
-    } catch (e) {
-      console.warn('blob.text failed', e);
-      return entry;
-    }
-  } catch (err) {
-    console.warn('processBlobAsDocument', err);
-    return entry;
+    ut.rate = opts.rate || 1.0;
+    ut.pitch = opts.pitch || 1.0;
+    this.synth.cancel();
+    this.synth.speak(ut);
+  },
+  playUserSample(){
+    if(!state.voiceSampleURL) { setStatus('No voice sample uploaded'); return; }
+    const a = new Audio(state.voiceSampleURL);
+    a.play();
   }
-}
+};
 
-async function handleFileInput(files, onProgress) {
-  if (!files || files.length === 0) { setStatus('No files selected'); return; }
-  setStatus('Processing files...');
-  for (let i = 0; i < files.length; i++) {
-    const f = files[i];
-    try {
-      const processed = await processBlobAsDocument(f, f.name, p => {
-        if (p && p.stage) setStatus(`Processing ${f.name}: ${p.stage} ${p.page?('page '+p.page):''} ${(p.progress?Math.round(p.progress*100)+'%':'')}`);
-        if (typeof onProgress === 'function') onProgress(p);
-      });
-      if (processed) { state.library.push(processed); setStatus(`Processed ${processed.name}`); }
-      else { setStatus(`Processed archive ${f.name}`); }
-    } catch (e) {
-      console.error('file process error', e);
-      setStatus(`Error processing ${f.name}`);
-    }
-  }
-  state.lastProcessedAt = new Date().toISOString();
+/* ===========================
+   Badges & Targets
+   =========================== */
+function awardBadge(id, title){
+  if(state.badges[id]) return; // already awarded
+  state.badges[id] = { title, awardedAt: Date.now() };
   saveState();
-  renderLibrary();
-  updateBadges();
-  setStatus('All files processed');
+  setStatus('Badge awarded: ' + title);
+}
+function updateProgress(n){
+  state.dailyProgress = (state.dailyProgress || 0) + (n || 1);
+  saveState();
+  if(state.dailyProgress >= (state.dailyTarget||20)) awardBadge('streak', 'Daily Target Achieved');
 }
 
-/* ---------- Library UI ---------- */
-function renderLibrary() {
-  const list = $('libraryList');
-  if (!list) return;
-  list.innerHTML = '';
-  if (!state.library || !state.library.length) {
-    list.innerHTML = '<div class="small">No documents yet</div>';
-    return;
-  }
-  state.library.forEach((doc, idx) => {
-    const row = document.createElement('div'); row.className = 'docRow';
-    row.innerHTML = `
-      <div>
-        <div class="docTitle">${escapeHtml(doc.name)}</div>
-        <div class="docMeta">${escapeHtml(doc.type||'')} • ${new Date(doc.added).toLocaleString()}</div>
-      </div>
-      <div style="display:flex;gap:8px;align-items:center">
-        <button class="btn" data-i="${idx}" data-action="view">View</button>
-        <button class="btn" data-i="${idx}" data-action="summary">Summary</button>
-        <button class="btn danger" data-i="${idx}" data-action="delete">Delete</button>
-      </div>
-    `;
-    list.appendChild(row);
+/* ===========================
+   PDF extraction + OCR via Tesseract
+   =========================== */
+
+async function loadTesseractWorker(lang='eng', onProgress=null){
+  // create worker with explicit langPath for traineddata
+  const worker = Tesseract.createWorker({
+    logger: m => { if(onProgress) onProgress(m); }
   });
-  list.querySelectorAll('button[data-action="view"]').forEach(b => b.onclick = e => viewDocument(+e.currentTarget.dataset.i));
-  list.querySelectorAll('button[data-action="summary"]').forEach(b => b.onclick = e => {
-    const d = state.library[+e.currentTarget.dataset.i]; if (!d) return;
-    $('summaryOutput') && ($('summaryOutput').textContent = d.text ? d.text.slice(0,1200) : '(no text)');
-    setStatus('Showing document snapshot');
-  });
-  list.querySelectorAll('button[data-action="delete"]').forEach(b => b.onclick = e => {
-    const i = +e.currentTarget.dataset.i; if (!confirm('Delete this document?')) return;
-    state.library.splice(i,1); saveState(); renderLibrary(); setStatus('Deleted');
-  });
+  await worker.load();
+  // set langPath so that worker can fetch traineddata from public tessdata project
+  await worker.loadLanguage(lang);
+  await worker.initialize(lang);
+  return worker;
 }
 
-function viewDocument(i) {
-  const d = state.library[i];
-  if (!d) return setStatus('Document missing');
-  const w = window.open('', '_blank');
-  const html = `<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>${escapeHtml(d.name)}</title><style>body{font-family:Inter,Arial;padding:16px;background:#0b1220;color:#e6eef6}</style></head>
-    <body><h2>${escapeHtml(d.name)}</h2><pre>${escapeHtml(d.text || '(no text)')}</pre></body></html>`;
-  w.document.open(); w.document.write(html); w.document.close();
-}
+async function extractTextFromPDFBuffer(arrayBuffer, ocrLang='eng', progressCb=null){
+  // Uses pdf.js (fast) then if no text, renders page to canvas and runs Tesseract OCR per page.
+  const pdfjsLib = window.pdfjsLib || window['pdfjs-dist/build/pdf'];
+  if(!pdfjsLib) throw new Error('pdf.js is not loaded');
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.worker.min.js';
+  const doc = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
+  const numPages = doc.numPages;
+  let fullText = '';
+  let needOCR = false;
 
-/* ---------- Summaries ---------- */
-function getAllText() { return state.library.map(d=>d.text||'').join('\n\n'); }
-function quickSummary() {
-  const all = getAllText(); if (!all || all.length<20) return '(no material)';
-  const sents = all.match(/[^\.!\?]+[\.!\?]+/g) || [all];
-  return sents.slice(0,4).join(' ').trim();
-}
-function detailedSummary() {
-  const all = getAllText(); if (!all || all.length<20) return '(no material)';
-  const words = all.split(/\s+/).slice(0,1500);
-  return words.join(' ');
-}
-
-/* ---------- MCQ generator ---------- */
-function generateMCQsFromText(count=10) {
-  const text = getAllText();
-  if (!text || text.length < 100) return { error: 'Not enough content' };
-  const sentences = text.split(/[\r\n]+|[\.!?]+/).map(s=>s.trim()).filter(Boolean);
-  const questions = [];
-  for (let i=0;i<Math.min(count, sentences.length);i++){
-    const qtxt = truncate(sentences[i], 120);
-    const correct = qtxt;
-    const d1 = shuffleText(correct);
-    const d2 = shuffleText(correct + ' extra');
-    const d3 = shuffleText(correct + ' more');
-    const choices = shuffleArray([correct, d1, d2, d3]);
-    questions.push({ q: qtxt, choices, answer: correct });
-  }
-  return { questions };
-}
-function renderMCQList(questions) {
-  if (!questions || !questions.length) return '(no questions)';
-  return questions.map((q, idx) => `${idx+1}. ${q.q}\n${q.choices.map((c,i)=>String.fromCharCode(65+i)+') '+c).join('\n')}\n`).join('\n');
-}
-
-/* ---------- GK module ---------- */
-const GK = (function(){
-  const session = { pool: [], index:0, score:0, current:null, timerId:null, timeLeft:0 };
-
-  function decodeHtml(s){ const t=document.createElement('textarea'); t.innerHTML = s; return t.value; }
-
-  async function fetchOpenTDB(amount=10, difficulty='medium') {
-    try {
-      const url = `https://opentdb.com/api.php?amount=${amount}&type=multiple${difficulty ? '&difficulty='+difficulty : ''}`;
-      const r = await fetch(url);
-      const j = await r.json();
-      if (j && j.results) {
-        return j.results.map((it,idx) => ({ id: 'otdb_'+idx+'_'+Date.now(), question: decodeHtml(it.question), options: shuffleArray([decodeHtml(it.correct_answer), ...it.incorrect_answers.map(decodeHtml)]), answer: decodeHtml(it.correct_answer), subject: it.category, difficulty: it.difficulty }));
+  // first pass: try to extract text from pages quickly
+  for(let p=1;p<=numPages;p++){
+    const page = await doc.getPage(p);
+    try{
+      const content = await page.getTextContent();
+      const pageText = content.items.map(i=>i.str).join(' ').trim();
+      if(pageText && pageText.length>20){
+        fullText += pageText + '\n\n';
+      } else {
+        needOCR = true;
+        // we still continue to collect non-empty texts from other pages
       }
-    } catch (e) { console.warn('OpenTDB fetch failed', e); }
+    } catch(ex){
+      needOCR = true;
+    }
+  }
+
+  // if we got significant text, return it
+  if(fullText.trim().length > 50 && !needOCR){
+    return {text: fullText, ocrUsed:false};
+  }
+
+  // OCR: create a worker (may be heavy). We'll OCR pages that had no text.
+  setStatus('OCR fallback: starting Tesseract (this can be slow on mobile)');
+  const worker = await loadTesseractWorker(ocrLang, progressCb);
+  try{
+    for(let p=1;p<=numPages;p++){
+      const page = await doc.getPage(p);
+      const viewport = page.getViewport({scale: 1.8});
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = Math.floor(viewport.width);
+      canvas.height = Math.floor(viewport.height);
+      await page.render({canvasContext: ctx, viewport}).promise;
+      if(progressCb) progressCb({status:'render', progress: (p-1)/numPages});
+      // run OCR on canvas
+      const { data } = await worker.recognize(canvas);
+      fullText += (data && data.text ? data.text : '') + '\n\n';
+      if(progressCb) progressCb({status:'ocr', page:p, progress: p/numPages});
+    }
+  } finally {
+    await worker.terminate();
+  }
+  return {text: fullText.trim(), ocrUsed:true};
+}
+
+/* ===========================
+   File handling: process uploaded files
+   =========================== */
+
+async function processFiles(fileList){
+  const files = Array.from(fileList);
+  if(!files.length) { setStatus('No files'); return; }
+  for(const f of files){
+    setStatus('Processing: ' + f.name);
+    try{
+      if(f.type === 'application/pdf' || /\.pdf$/i.test(f.name)){
+        const ab = await f.arrayBuffer();
+        // Attempt faster pdf.js text extraction; OCR fallback inside extractTextFromPDFBuffer
+        const result = await extractTextFromPDFBuffer(ab, $('ocrLang').value || state.ocrLang, m => {
+          // progress logging - update UI
+          if(m.status === 'recognizing text' || m.status === 'ocr') {
+            setStatus(`OCR progress: ${Math.round((m.progress||0)*100)}%`);
+          } else if(m.status === 'render' || m.status === 'ocr') {
+            setStatus(`Processing page: ${m.page || ''}`);
+          }
+        });
+        const txt = result.text || '';
+        state.library.unshift({id: uid('doc'), name: f.name, text: txt, added: Date.now(), sourceFileName: f.name});
+        setStatus(`Done: ${f.name} (OCR used: ${result.ocrUsed ? 'yes' : 'no'})`);
+      } else if(f.type.startsWith('image/') || /\.(jpe?g|png)$/i.test(f.name)){
+        // simple image OCR
+        const imgBlob = f;
+        const imgURL = URL.createObjectURL(imgBlob);
+        const img = new Image(); img.src = imgURL;
+        await img.decode();
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
+        const ctx = canvas.getContext('2d'); ctx.drawImage(img,0,0);
+        const worker = await loadTesseractWorker($('ocrLang').value || state.ocrLang, m => setStatus(`OCR image: ${Math.round((m.progress||0)*100)}%`));
+        const { data } = await worker.recognize(canvas);
+        await worker.terminate();
+        state.library.unshift({id: uid('img'), name: f.name, text: data.text || '', added: Date.now(), sourceFileName: f.name});
+        URL.revokeObjectURL(imgURL);
+        setStatus('Image OCR done: ' + f.name);
+      } else if(f.type === 'text/plain' || /\.txt$/i.test(f.name)){
+        const txt = await f.text();
+        state.library.unshift({id: uid('txt'), name: f.name, text: txt, added: Date.now(), sourceFileName: f.name});
+        setStatus('Text file added: ' + f.name);
+      } else {
+        setStatus('Unsupported file type: ' + f.name);
+      }
+    } catch(err){
+      console.error('file process error', err);
+      state.library.unshift({id: uid('err'), name: f.name, text: '', added: Date.now(), sourceFileName: f.name});
+      setStatus('Processing failed for: ' + f.name);
+    }
+    saveState();
+    renderLibrary();
+  }
+}
+
+/* ===========================
+   Render library UI
+   =========================== */
+function renderLibrary(){
+  const list = $('libraryList');
+  if(!list) return;
+  if(!state.library.length){ list.innerHTML = '<div class="note">No documents</div>'; return; }
+  list.innerHTML = '';
+  state.library.forEach((doc, idx)=>{
+    const div = document.createElement('div'); div.className='doc';
+    const left = document.createElement('div');
+    left.innerHTML = `<strong>${doc.name}</strong><div class="muted">Added: ${formatDate(doc.added)}</div>`;
+    const right = document.createElement('div');
+    const viewBtn = document.createElement('button'); viewBtn.className='btn'; viewBtn.textContent='View';
+    viewBtn.onclick = ()=> openViewer(doc);
+    const summaryBtn = document.createElement('button'); summaryBtn.className='btn'; summaryBtn.textContent='Summary';
+    summaryBtn.onclick = ()=> quickSummary(doc);
+    const delBtn = document.createElement('button'); delBtn.className='btn btn-danger'; delBtn.textContent='Delete';
+    delBtn.onclick = ()=> { if(confirm('Delete this document?')){ state.library.splice(idx,1); saveState(); renderLibrary(); } };
+    right.appendChild(viewBtn); right.appendChild(summaryBtn); right.appendChild(delBtn);
+    div.appendChild(left); div.appendChild(right);
+    list.appendChild(div);
+  });
+}
+
+/* ===========================
+   Viewer, Summaries & MCQ generation (demo stubs + simple heuristics)
+   =========================== */
+function openViewer(doc){
+  const w = window.open('about:blank','viewer');
+  if(!w){ setStatus('Popup blocked: allow popups to view document'); return; }
+  const content = doc.text ? escapeHtml(doc.text).replace(/\n/g,'<br/>') : '(no text)';
+  w.document.write(`<html><body style="background:#071014;color:#e6eef6;font-family:Arial;padding:12px"><h3>${doc.name}</h3><div style="white-space:pre-wrap">${content}</div></body></html>`);
+  w.document.close();
+}
+function escapeHtml(s){ return (s||'').replace(/[&<>"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
+
+function quickSummary(doc){
+  // Very simple heuristic 'summary' - extract top sentences containing keywords (demo)
+  if(!doc || !doc.text) { $('summaryBox').textContent = '(no material)'; return; }
+  const text = doc.text.replace(/\n/g,' ').replace(/\s+/g,' ');
+  const sentences = text.split(/(?<=[.?!])\s+/).filter(Boolean);
+  const keywords = ['important','summary','conclusion','chapter','definition','means','is','are','cause','effect'];
+  const picks = [];
+  for(const s of sentences){
+    for(const k of keywords){ if(s.toLowerCase().includes(k) && picks.length<5){ picks.push(s.trim()); break; } }
+  }
+  if(!picks.length) picks.push(sentences.slice(0,3).join(' '));
+  $('summaryBox').textContent = picks.join('\n\n');
+  setStatus('Quick summary (demo) ready');
+  // Offer to speak
+  if(state.voiceEnabled) Voice.speak(picks.join('. '));
+}
+
+async function generateMCQsFromDoc(doc, count=5){
+  // Very naive MCQ generator: find sentences with 'is/are' and craft a question (demo only)
+  const text = doc.text || '';
+  const sentences = text.split(/(?<=[.?!])\s+/).filter(s=>s.length>20);
+  const candidates = sentences.filter(s => /\b(is|are|was|were|refers to|means)\b/i);
+  const qlist = [];
+  for(let s of candidates.slice(0,count)){
+    // attempt simple split by 'is' or 'are'
+    const m = s.match(/(.+?)\s+(is|are|was|were|means|refers to)\s+(.+)/i);
+    if(!m) continue;
+    const subject = m[1].replace(/["'()]/g,'').trim();
+    const answer = m[3].replace(/[.?!]$/,'').split(/[,;:]/)[0].trim();
+    if(!subject || !answer) continue;
+    // build 3 simple wrong options by scrambling words (demo)
+    const wrong1 = scrambleWords(answer);
+    const wrong2 = scrambleWords(answer + ' extra');
+    const wrong3 = scrambleWords(answer + ' something');
+    qlist.push({
+      question: `What does "${subject}" refer to?`,
+      correct: answer,
+      choices: shuffleArray([answer, wrong1, wrong2, wrong3])
+    });
+  }
+  return qlist;
+}
+function scrambleWords(s){
+  const parts = s.split(/\s+/);
+  parts.sort(()=>Math.random()-0.5);
+  return parts.join(' ').slice(0, Math.max(8, Math.min(30, s.length)));
+}
+function shuffleArray(a){ return a.slice().sort(()=>Math.random()-0.5); }
+
+/* ===========================
+   General Knowledge quiz (OpenTDB)
+   =========================== */
+async function fetchGKQuestions(amount=10, category=null, difficulty='medium'){
+  try{
+    let url = `${OPENTDB_API}?amount=${amount}&type=multiple`;
+    if(category) url += `&category=${category}`;
+    if(difficulty) url += `&difficulty=${difficulty}`;
+    setStatus('Fetching GK questions...');
+    const res = await fetch(url);
+    const json = await res.json();
+    if(json.response_code !== 0) { setStatus('Trivia API: no results'); return []; }
+    return json.results.map(q=>({
+      question: decodeHtmlEntities(q.question),
+      correct: decodeHtmlEntities(q.correct_answer),
+      choices: shuffleArray([q.correct_answer, ...q.incorrect_answers].map(decodeHtmlEntities))
+    }));
+  } catch(err){
+    console.error('trivia fetch',err);
+    setStatus('Trivia fetch failed (offline?)');
     return [];
   }
+}
+function decodeHtmlEntities(s){ const txt = document.createElement('textarea'); txt.innerHTML = s; return txt.value; }
 
-  function parseCSVtoQuestions(txt) {
-    const lines = txt.split(/\r?\n/).filter(Boolean);
-    if (!lines.length) return [];
-    const header = lines.shift().split(',').map(h=>h.trim().toLowerCase());
-    return lines.map(line => {
-      const cols = line.split(',');
-      const obj = {}; header.forEach((h,i)=> obj[h] = cols[i]?cols[i].trim():'');
-      return { id: obj.id || ('csv_'+Math.random().toString(36).slice(2,8)), question: obj.question||'', options: [obj.option1||'', obj.option2||'', obj.option3||'', obj.option4||''], answer: obj.answer||(obj.option1||''), hint: obj.hint||'', subject: obj.subject||'General' };
-    });
-  }
-
-  function start(pool) {
-    session.pool = shuffleArray(pool || []);
-    session.index = 0; session.score = 0; session.current = null;
-    loadNext();
-  }
-
-  function loadNext() {
-    if (session.index >= session.pool.length) { setStatus(`GK complete. Score: ${session.score}`); renderQuestion(null); return; }
-    session.current = session.pool[session.index];
-    renderQuestion(session.current);
-    const t = parseInt($('quizTimer') ? $('quizTimer').value : 0) || 0;
-    startTimer(t);
-  }
-
-  function renderQuestion(q) {
-    const qEl = $('gkQuestionText'); const optsEl = $('gkOptions'); if (!qEl || !optsEl) return;
-    if (!q) { qEl.innerText = 'Session complete'; optsEl.innerHTML = ''; return; }
-    qEl.innerText = q.question; optsEl.innerHTML = '';
-    q.options.forEach((opt, i) => {
-      const b = document.createElement('button'); b.className='btn'; b.innerText = String.fromCharCode(65+i)+'. '+opt; b.onclick = ()=> answer(opt); optsEl.appendChild(b);
-    });
-    $('gkScore') && ($('gkScore').innerText = `Score: ${session.score} • Q ${session.index+1}/${session.pool.length}`);
-  }
-
-  function answer(choice) {
-    if (!session.current) return;
-    if (choice === session.current.answer) { session.score++; setStatus('Correct!'); VoiceManager.speak('Correct answer'); }
-    else { setStatus('Wrong. Correct: ' + session.current.answer); VoiceManager.speak('Wrong answer'); }
-    clearTimer(); session.index++; setTimeout(()=> loadNext(), 700);
-  }
-
-  function lifeline5050() {
-    const optsEl = $('gkOptions'); if (!optsEl || !session.current) return;
-    const buttons = Array.from(optsEl.children); const wrongBtns = buttons.filter(b => !b.innerText.includes(session.current.answer));
-    let removed = 0; for (let b of wrongBtns) { if (removed >= 2) break; b.style.visibility='hidden'; removed++; }
-    setStatus('50-50 used');
-  }
-  function lifelineHint() { if (!session.current) return setStatus(session.current.hint || ('Hint: starts with '+(session.current.answer[0]||'?'))); }
-  function lifelineSkip() { setStatus('Skipped'); session.index++; loadNext(); }
-
-  function startTimer(seconds) {
-    clearTimer();
-    if (!seconds || seconds <= 0) return;
-    session.timeLeft = seconds; $('gkTimer') && ($('gkTimer').innerText = `Time left: ${session.timeLeft}s`);
-    session.timerId = setInterval(()=> {
-      session.timeLeft--;
-      $('gkTimer') && ($('gkTimer').innerText = `Time left: ${session.timeLeft}s`);
-      if (session.timeLeft <= 10 && session.timeLeft > 0) VoiceManager.speak(String(session.timeLeft));
-      if (session.timeLeft <= 0) { clearTimer(); if ((state.settings && state.settings.timeoutBehavior) === 'skip') { setStatus('Time up — skipped'); session.index++; loadNext(); } else { setStatus('Time up — marked wrong'); session.index++; loadNext(); } }
-    }, 1000);
-  }
-
-  function clearTimer(){ if (session.timerId) { clearInterval(session.timerId); session.timerId = null; } $('gkTimer') && ($('gkTimer').innerText=''); }
-
-  function wire() {
-    const startBtn = $('startGK'); if (startBtn) startBtn.onclick = async ()=> {
-      const mode = $('gkMode') ? $('gkMode').value : 'dynamic_gk';
-      if (mode === 'kbc_archive') {
-        const f = $('kbcDataset') && $('kbcDataset').files && $('kbcDataset').files[0];
-        if (!f) { setStatus('Choose dataset file'); return; }
-        const txt = await f.text(); const arr = txt.trim().startsWith('[') ? JSON.parse(txt) : parseCSVtoQuestions(txt);
-        start(arr);
-      } else if (mode === 'dynamic_gk') {
-        setStatus('Fetching GK questions...'); const out = await fetchOpenTDB(15, $('gkDifficulty') ? $('gkDifficulty').value : 'medium'); start(out);
-      } else setStatus('Mode not supported');
-    };
-    const stopBtn = $('stopGK'); if (stopBtn) stopBtn.onclick = ()=> { clearTimer(); renderQuestion(null); setStatus('Stopped'); };
-    const lif50 = $('lifeline5050'); if (lif50) lif50.onclick = lifeline5050;
-    const lifHint = $('lifelineHint'); if (lifHint) lifHint.onclick = lifelineHint;
-    const lifSkip = $('lifelineSkip'); if (lifSkip) lifSkip.onclick = lifelineSkip;
-    const importBtn = $('importKBC'); if (importBtn) importBtn.onclick = async ()=> {
-      const f = $('kbcDataset') && $('kbcDataset').files && $('kbcDataset').files[0]; if (!f) return setStatus('Choose dataset'); try { const txt = await f.text(); const parsed = txt.trim().startsWith('[') ? JSON.parse(txt) : parseCSVtoQuestions(txt); window._imported_kbc = parsed; setStatus('Imported dataset with '+parsed.length+' questions'); } catch (e) { setStatus('Import failed: '+e.message); }
-    };
-  }
-
-  return { wire };
-})();
-
-/* ---------- Quiz system ---------- */
-const Quiz = (function(){
-  let qsession = { questions: [], index:0, score:0, timerId:null, timeLeft:0 };
-
-  function startFromQuestions(questions) {
-    qsession.questions = shuffleArray(questions || []);
-    qsession.index = 0; qsession.score = 0; loadQuestion();
-  }
-
-  function loadQuestion() {
-    if (qsession.index >= qsession.questions.length) { setStatus('Quiz finished. Score: '+qsession.score); $('quizOutput') && ($('quizOutput').textContent = `Completed. Score: ${qsession.score}/${qsession.questions.length}`); return; }
-    const cur = qsession.questions[qsession.index];
-    render(cur);
-    const t = parseInt($('quizTimer') ? $('quizTimer').value : 0) || 0; startTimer(t);
-  }
-
-  function render(q) {
-    const out = $('quizOutput'); if (!out) return; out.innerHTML = `<div style="font-weight:700;margin-bottom:8px">${escapeHtml(q.q)}</div>`; q.choices.forEach((c, idx)=>{ const btn = document.createElement('button'); btn.className='btn'; btn.textContent = String.fromCharCode(65+idx)+'. '+c; btn.onclick = ()=> check(c); out.appendChild(btn); }); out.appendChild(document.createElement('div'));
-  }
-
-  function check(choice) {
-    const cur = qsession.questions[qsession.index];
-    if (!cur) return;
-    if (choice === cur.answer) { qsession.score++; setStatus('Correct'); VoiceManager.speak('Correct answer'); } else { setStatus('Wrong — correct: '+cur.answer); VoiceManager.speak('Wrong answer'); }
-    clearTimer(); qsession.index++; setTimeout(()=> loadQuestion(), 600);
-  }
-
-  function startTimer(seconds) {
-    clearTimer();
-    if (!seconds || seconds <= 0) return;
-    qsession.timeLeft = seconds;
-    const info = document.createElement('div'); info.id = 'quizTimerDisplay'; info.style.marginTop='10px';
-    const out = $('quizOutput'); if (out) out.appendChild(info);
-    qsession.timerId = setInterval(()=> {
-      qsession.timeLeft--;
-      const el = $('quizTimerDisplay'); if (el) el.innerText = `Time left: ${qsession.timeLeft}s`;
-      if (qsession.timeLeft <= 10 && qsession.timeLeft > 0) VoiceManager.speak(String(qsession.timeLeft));
-      if (qsession.timeLeft <= 0) { clearTimer(); if ((state.settings && state.settings.timeoutBehavior) === 'skip') { setStatus('Time up — skipped'); qsession.index++; loadQuestion(); } else { setStatus('Time up — marked wrong'); qsession.index++; loadQuestion(); } }
-    }, 1000);
-  }
-
-  function clearTimer() { if (qsession.timerId) { clearInterval(qsession.timerId); qsession.timerId = null; } const el = $('quizTimerDisplay'); if (el) el.remove(); }
-
-  return { startFromQuestions };
-})();
-
-/* ---------- Badges & targets ---------- */
-function updateBadges() {
-  const totalWords = state.library.reduce((acc, d) => acc + ((d.text||'').split(/\s+/).filter(Boolean).length), 0);
-  const badges = [];
-  if (totalWords > 500) badges.push('Reader');
-  if (totalWords > 3000) badges.push('Scholar');
-  if (totalWords > 15000) badges.push('Master');
-  state.badges = badges; saveState();
-  const el = $('badges'); if (el) el.innerText = badges.length ? badges.join(', ') : 'No badges yet';
+/* ===========================
+   KBC mode basics (demo)
+   =========================== */
+async function startKBCFromUploadedMaterial(){
+  // Use uploaded library to create KBC-style practice questions
+  if(!state.library.length){ setStatus('No library material to create KBC questions'); return; }
+  // pick first doc with text
+  const doc = state.library.find(d=>d.text && d.text.length>50);
+  if(!doc){ setStatus('No readable document found'); return; }
+  const mcqs = await generateMCQsFromDoc(doc, 10);
+  if(!mcqs.length){ setStatus('Could not auto-generate KBC questions from material (demo)'); return; }
+  // show first question
+  showKBCQuestion(mcqs,0,0);
+}
+function showKBCQuestion(list, idx, score){
+  if(idx >= list.length){ setStatus(`KBC practice complete. Score: ${score}/${list.length}`); awardBadge('kbc-player','KBC Practice Completed'); return; }
+  const q = list[idx];
+  // simple modal question UI using prompt (for demo)
+  const answer = prompt(`Q${idx+1}: ${q.question}\nChoices:\n${q.choices.map((c,i)=>`${i+1}. ${c}`).join('\n')}\nEnter choice number:`);
+  const sel = Number(answer) - 1;
+  if(q.choices[sel] === q.correct){ score++; alert('Correct!'); updateProgress(1); }
+  else alert(`Wrong. Correct answer: ${q.correct}`);
+  showKBCQuestion(list, idx+1, score);
 }
 
-/* ---------- Core UI binding (includes license Apply override) ---------- */
-function bindCoreUI() {
-  // Save name
-  const saveNameBtn = $('saveName'); if (saveNameBtn) saveNameBtn.onclick = ()=> { const v = $('name') ? $('name').value.trim() : ''; state.user.name = v; saveState(); setStatus('Name saved'); VoiceManager.speak('Welcome ' + (v || 'student')); };
-
-  // License apply - replaced by license handler below (renderLicenseBadge and applyLic wiring done later)
-  // File process
-  const fileInput = $('fileInput'); const processBtn = $('processBtn');
-  if (processBtn && fileInput) processBtn.onclick = ()=> {
-    const files = Array.from(fileInput.files || []);
-    if (!files.length) return setStatus('Select files first');
-    handleFileInput(files, p => {}).catch(e => setStatus('Processing failed'));
+/* ===========================
+   Helpers & UI wiring
+   =========================== */
+function wireUI(){
+  // basic buttons & inputs
+  $('saveName').onclick = ()=>{
+    state.name = $('name').value.trim();
+    saveState();
+    setStatus('Name saved');
+    Voice.speak(`Hi ${state.name || 'student'}`);
   };
-
-  // Delete all
-  const deleteAllBtn = $('deleteAll'); if (deleteAllBtn) deleteAllBtn.onclick = ()=> { if (!confirm('Delete all documents?')) return; state.library = []; saveState(); renderLibrary(); setStatus('Library cleared'); };
-
-  // Summaries
-  const quickBtn = $('quickSummary'); if (quickBtn) quickBtn.onclick = ()=> { const s = quickSummary(); $('summaryOutput') && ($('summaryOutput').textContent = s); };
-  const detBtn = $('detailedSummary'); if (detBtn) detBtn.onclick = ()=> { const s = detailedSummary(); $('summaryOutput') && ($('summaryOutput').textContent = s); };
-  const readBtn = $('readSummary'); if (readBtn) readBtn.onclick = ()=> { const s = $('summaryOutput') ? $('summaryOutput').textContent : ''; if (s) VoiceManager.speak(s); };
-
-  // MCQ create
-  const createMCQsBtn = $('createMCQs'); if (createMCQsBtn) createMCQsBtn.onclick = ()=> { const r = generateMCQsFromText(10); if (r.error) setStatus(r.error); else $('quizOutput') && ($('quizOutput').textContent = renderMCQList(r.questions)); };
-
-  // Quiz generate
-  const genQuizBtn = $('generateQuiz'); if (genQuizBtn) genQuizBtn.onclick = ()=> {
-    const type = $('quizType') ? $('quizType').value : 'mcq4';
-    if (type === 'mcq4') {
-      const r = generateMCQsFromText(10);
-      if (r.error) setStatus(r.error);
-      else Quiz.startFromQuestions(r.questions);
-    } else setStatus('Only MCQ currently supported in demo');
+  $('enableVoice').onclick = ()=>{
+    state.voiceEnabled = !state.voiceEnabled;
+    saveState();
+    $('enableVoice').textContent = state.voiceEnabled ? 'Disable Voice' : 'Enable Voice';
+    setStatus('Voice ' + (state.voiceEnabled ? 'enabled' : 'disabled'));
   };
-
-  // GK
-  GK.wire();
-
-  // Export/Import backup
-  const exportBackup = $('exportBackup'); if (exportBackup) exportBackup.onclick = ()=> {
-    const data = JSON.stringify(state);
-    const blob = new Blob([data], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = 'ssc_backup.json'; a.click(); URL.revokeObjectURL(url);
+  $('applyLicense').onclick = ()=> applyLicense($('license').value);
+  $('fileInput').onchange = (e)=> {
+    const files = e.target.files;
+    if(!files || !files.length) { setStatus('No files selected'); return; }
+    // store temporarily for process button
+    window._pendingFiles = files;
+    setStatus(files.length + ' file(s) selected');
   };
-  const importBackup = $('importBackup'); if (importBackup) importBackup.onclick = ()=> {
-    const inp = document.createElement('input'); inp.type = 'file'; inp.accept='.json'; inp.onchange = async ()=> { const f = inp.files[0]; if (!f) return; const txt = await f.text(); try { const j = JSON.parse(txt); state = j; saveState(); renderLibrary(); updateBadges(); setStatus('Backup imported'); } catch(e){ setStatus('Invalid backup'); } }; inp.click();
-  };
-
-  // Feedback
-  const sendFeedback = $('sendFeedback'); if (sendFeedback) sendFeedback.onclick = ()=> {
-    const t = $('feedbackText') ? $('feedbackText').value.trim() : '';
-    if (!t) return setStatus('Feedback empty');
-    try { const key = 'ssc_feedback'; const arr = JSON.parse(localStorage.getItem(key) || '[]'); arr.push({ text: t, when: new Date().toISOString() }); localStorage.setItem(key, JSON.stringify(arr)); $('feedbackText') && ($('feedbackText').value = ''); setStatus('Feedback saved'); } catch (e) { setStatus('Feedback save failed'); }
-  };
-
-  // Settings/OCR language
-  const ocrSelect = $('ocrLang'); if (ocrSelect) { ocrSelect.onchange = ()=> { state.ocrLang = ocrSelect.value; saveState(); setStatus('OCR language set: '+state.ocrLang); } }
-  const themePreset = $('themePreset'); if (themePreset) themePreset.value = state.appearance.preset || 'dark';
-  Appearance.initControls();
-
-  // voice preview elements
-  const vRate = $('voiceRate'); const vPitch = $('voicePitch');
-  if (vRate) vRate.value = state.voice.rate || 1;
-  if (vPitch) vPitch.value = state.voice.pitch || 1;
-}
-
-/* ---------- Small helpers ---------- */
-function shuffleArray(a){ const arr=a.slice(); for (let i=arr.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]]; } return arr; }
-function shuffleText(s){ const w=s.split(/\s+/).filter(Boolean); for (let i=w.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [w[i],w[j]]=[w[j],w[i]]; } return w.join(' '); }
-function truncate(s,n=120){ return s && s.length>n? s.slice(0,n-1)+'…': s; }
-function escapeHtml(s){ if(!s) return ''; return String(s).replace(/[&<>"']/g, c=> ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-
-/* ---------- License UI & Premium gating ---------- */
-// Render license badge if element exists
-function renderLicenseBadge() {
-  try {
-    const badge = document.getElementById('licenseBadge');
-    const valEl = document.getElementById('licenseValue');
-    if (!badge || !valEl) return;
-    const lic = state.license || 'DEMO';
-    valEl.textContent = lic;
-    if (String(lic).toUpperCase() === 'FULL-ACCESS') {
-      badge.style.background = 'linear-gradient(90deg,#3ad29f,#59b0ff)';
-      badge.style.color = '#042018';
-      badge.style.borderColor = 'rgba(0,0,0,0.08)';
-      badge.title = 'Full access active';
-    } else {
-      badge.style.background = 'rgba(255,255,255,0.02)';
-      badge.style.color = '';
-      badge.style.borderColor = 'rgba(255,255,255,0.03)';
-      badge.title = 'Demo mode';
-    }
-  } catch (e) { console.warn('renderLicenseBadge error', e); }
-}
-
-// Centralized premium toggle (frontend flags)
-function setPremiumFeatures(enabled) {
-  try {
-    window.SSC_FEATURES = window.SSC_FEATURES || {};
-    if (enabled) {
-      window.SSC_FEATURES.fullAccess = true;
-      window.SSC_FEATURES.maxUploadMB = 500;
-      window.SSC_FEATURES.unlockedLanguages = ['eng','hin','mar','guj','eng+hin'];
-    } else {
-      window.SSC_FEATURES.fullAccess = false;
-      window.SSC_FEATURES.maxUploadMB = 50;
-      window.SSC_FEATURES.unlockedLanguages = ['eng'];
-    }
-    const ocrSel = document.getElementById('ocrLang');
-    if (ocrSel && window.SSC_FEATURES.unlockedLanguages) {
-      const selVal = ocrSel.value;
-      const options = { eng: 'English', hin: 'Hindi', mar: 'Marathi', guj: 'Gujarati', 'eng+hin': 'Eng + Hin' };
-      ocrSel.innerHTML = '';
-      (window.SSC_FEATURES.unlockedLanguages || ['eng']).forEach(code => {
-        const opt = document.createElement('option'); opt.value = code; opt.text = options[code] || code; ocrSel.appendChild(opt);
-      });
-      if ([...ocrSel.options].some(o => o.value === selVal)) ocrSel.value = selVal;
-    }
-  } catch (e) { console.warn('setPremiumFeatures error', e); }
-}
-
-// Apply license button wiring (safe to call after DOM ready)
-function wireLicenseApply() {
-  try {
-    const applyBtn = document.getElementById('applyLicense');
-    if (!applyBtn) return;
-    applyBtn.onclick = () => {
-      const licInput = document.getElementById('license');
-      const key = licInput ? (licInput.value || '').trim() : '';
-      if (!key) {
-        state.license = 'DEMO'; state.isPremium = false; saveState(); setPremiumFeatures(false); renderLicenseBadge(); setStatus('License cleared (DEMO)'); return;
-      }
-      if (String(key).toUpperCase() === 'FULL-ACCESS') {
-        state.license = 'FULL-ACCESS'; state.isPremium = true; saveState(); setPremiumFeatures(true); renderLicenseBadge(); setStatus('License applied: FULL-ACCESS'); VoiceManager.speak('Full access activated');
-      } else {
-        state.license = key; state.isPremium = false; saveState(); setPremiumFeatures(false); renderLicenseBadge(); setStatus('License applied: ' + key + ' (no full access)'); VoiceManager.speak('License applied');
-      }
-    };
-  } catch (e) { console.warn('wireLicenseApply error', e); }
-}
-
-/* ---------- Initialization & DOM wiring ---------- */
-document.addEventListener('DOMContentLoaded', ()=> {
-  try {
-    // init building blocks
-    VoiceManager.init();
-    Appearance.load();
-    bindCoreUI();
+  $('process').onclick = async ()=> {
+    const files = window._pendingFiles;
+    if(!files || !files.length){ alert('Choose files first'); return; }
+    setStatus('Processing files...');
+    await processFiles(files);
     renderLibrary();
-    updateBadges();
-    setStatus('Ready');
+    setStatus('Processing complete');
+    state.lastProcessedAt = Date.now(); saveState();
+  };
+  $('deleteAll').onclick = ()=> {
+    if(confirm('Delete all documents?')) { state.library = []; saveState(); renderLibrary(); setStatus('All documents deleted'); }
+  };
+  $('quickSum').onclick = ()=> {
+    if(!state.library.length) { $('summaryBox').textContent='(no material)'; return; }
+    quickSummary(state.library[0]);
+  };
+  $('detailedSum').onclick = ()=> { $('summaryBox').textContent='(detailed summarization not implemented in demo)'; };
+  $('readSum').onclick = ()=> { Voice.speak($('summaryBox').textContent || 'No summary'); };
 
-    // set multilingual labels for key controls
-    const tbtn = $('testVoice'); if (tbtn) tbtn.textContent = triple('testVoice');
-    const ev = $('enableVoice'); if (ev) ev.textContent = triple('enableVoice') + (state.voice.enabled ? ' : ON' : ' : OFF');
+  $('genMCQ').onclick = async ()=>{
+    if(!state.library.length){ setStatus('No library'); return; }
+    const mcqs = await generateMCQsFromDoc(state.library[0], 5);
+    if(!mcqs.length) { $('summaryBox').textContent='(no MCQs generated)'; return; }
+    $('summaryBox').textContent = mcqs.map((q,i)=>`${i+1}. ${q.question}\nA) ${q.choices[0]}\nB) ${q.choices[1]}\nC) ${q.choices[2]}\nD) ${q.choices[3]}\nAnswer: ${q.correct}\n`).join('\n\n');
+    setStatus('MCQs generated (demo)');
+  };
 
-    // license: render and wire
-    renderLicenseBadge();
-    setPremiumFeatures(String(state.license).toUpperCase() === 'FULL-ACCESS');
-    wireLicenseApply();
+  $('generateQuiz').onclick = async ()=> {
+    // try fetch GK from OpenTDB; fallback to local generation from docs
+    const online = navigator.onLine;
+    $('quizBox').textContent = 'Generating quiz...';
+    let questions = [];
+    if(online){
+      questions = await fetchGKQuestions(10);
+      if(!questions.length) setStatus('No GK questions from API; fallback to local');
+    }
+    if(!questions.length && state.library.length){
+      // generate from first doc
+      const mcqs = await generateMCQsFromDoc(state.library[0], 10);
+      questions = mcqs.map(m=>({question:m.question, choices:m.choices, correct:m.correct}));
+    }
+    if(!questions.length){ $('quizBox').textContent = '(no questions available)'; return; }
+    // render first few
+    $('quizBox').textContent = questions.map((q,i)=>`${i+1}. ${q.question}\nChoices: ${q.choices.join(' | ')}\nAnswer: ${q.correct}\n`).join('\n\n');
+    setStatus('Quiz ready');
+  };
 
-    // attempt to populate voice select (in case voices are already available)
-    try { if (typeof speechSynthesis !== 'undefined') { speechSynthesis.onvoiceschanged = () => { /* VoiceManager will refresh */ }; } } catch (e) {}
+  // voice sample upload
+  $('voiceSampleInput').onchange = (e)=> {
+    const f = e.target.files[0];
+    if(!f) return;
+    const url = URL.createObjectURL(f);
+    state.voiceSampleURL = url; saveState();
+    setStatus('Voice sample uploaded');
+  };
+  $('playVoiceSample').onclick = ()=> Voice.playUserSample();
 
-  } catch (e) { console.error('init error', e); setStatus('Init error'); }
-});
+  // OCR language change
+  $('ocrLang').onchange = ()=> { state.ocrLang = $('ocrLang').value; saveState(); setStatus('OCR language set to ' + state.ocrLang); };
 
-/* ---------- Expose debug helpers ---------- */
-window.ssc = { state, saveState, loadState, speak: (t)=> VoiceManager.speak(t), processSingleFile: processBlobAsDocument };
+  // badges & target UI
+  $('targetSet').onclick = ()=> {
+    const v = Number($('targetInput').value) || 0; state.dailyTarget = v; saveState(); setStatus('Daily target set: ' + v);
+  };
 
-/* ---------- Utility helpers ---------- */
-function log(...args){ console.log('[SSC]', ...args); }
-function humanDate(){ return new Date().toLocaleString(); }
+  // KBC start
+  $('startKBC').onclick = ()=> startKBCFromUploadedMaterial();
+}
 
-/* ---------- Small helper functions used elsewhere ---------- */
-function shuffleArray(a){ const arr=a.slice(); for (let i=arr.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]]; } return arr; }
-function shuffleText(s){ const w=s.split(/\s+/).filter(Boolean); for (let i=w.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [w[i],w[j]]=[w[j],w[i]]; } return w.join(' '); }
-function truncate(s,n=120){ return s && s.length>n? s.slice(0,n-1)+'…': s; }
-function escapeHtml(s){ if(!s) return ''; return String(s).replace(/[&<>"']/g, c=> ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+/* ===========================
+   Small UI creation helper (if HTML lacks some elements)
+   =========================== */
+function safeEnsureUI(){
+  // voice sample input & play button (if not present in index.html)
+  if(!$('voiceSampleInput')){
+    const container = document.createElement('div'); container.style.marginTop='8px';
+    container.innerHTML = `<label>Upload voice sample (mp3/wav)</label>
+      <input id="voiceSampleInput" type="file" accept="audio/*" />
+      <button id="playVoiceSample" class="btn">Play sample</button>`;
+    const manage = $('manage');
+    if(manage) manage.appendChild(container);
+  }
+  // badges target UI
+  if(!$('targetInput')){
+    const c = document.createElement('div'); c.style.marginTop='12px';
+    c.innerHTML = `<label>Daily target</label>
+      <input id="targetInput" type="number" value="${state.dailyTarget || 20}" />
+      <button id="targetSet" class="btn">Set</button>
+      <div id="badgesList" style="margin-top:8px"></div>`;
+    const manage = $('manage');
+    if(manage) manage.appendChild(c);
+  }
+  // KBC start button (if not present)
+  if(!$('startKBC')){
+    const c = document.createElement('div'); c.style.marginTop='10px';
+    c.innerHTML = `<button id="startKBC" class="btn btn-primary">Start KBC practice (from uploaded material)</button>`;
+    const library = $('library');
+    if(library) library.appendChild(c);
+  }
+}
 
-/* === END OF FILE: app.js === */
+/* ===========================
+   Render badges list
+   =========================== */
+function renderBadges(){
+  const box = $('badgesList');
+  if(!box) return;
+  box.innerHTML = Object.keys(state.badges).length ? Object.keys(state.badges).map(id=>{
+    const b = state.badges[id];
+    return `<div style="padding:6px;border-radius:8px;background:rgba(255,255,255,0.02);margin:6px 0">${b.title} — ${formatDate(b.awardedAt)}</div>`;
+  }).join('') : '<div class="note">No badges yet</div>';
+}
+
+/* ===========================
+   Initialization
+   =========================== */
+async function init(){
+  loadState();
+  // wire UI (elements assumed present in index.html)
+  wireUI();
+  safeEnsureUI();
+  Voice.init();
+  renderLicenseUI();
+  renderLibrary();
+  renderBadges();
+  setStatus('Ready (demo). Tip: type FULL-ACCESS and click Apply to unlock premium.');
+  // show saved name if any
+  if($('name')) $('name').value = state.name || '';
+  if($('ocrLang')) $('ocrLang').value = state.ocrLang || 'eng';
+  if($('license')) $('license').value = state.license || DEMO_LICENSE;
+  // set voice button label
+  if($('enableVoice')) $('enableVoice').textContent = state.voiceEnabled ? 'Disable Voice' : 'Enable Voice';
+  // daily progress badge demo
+  if(state.dailyProgress >= (state.dailyTarget || 20)) awardBadge('streak','Daily Target Achieved');
+}
+
+/* ===========================
+   Helpful UI helpers for developer & debug
+   =========================== */
+window.quickDebug = {
+  dumpState: ()=> console.log(JSON.stringify(state,null,2)),
+  clearAll: ()=> { if(confirm('Clear all local state?')){ localStorage.removeItem(STORAGE_KEY); location.reload(); } }
+};
+
+/* ===========================
+   Start app
+   =========================== */
+document.addEventListener('DOMContentLoaded', ()=> init());
+
+/* ===========================
+   FINAL NOTES:
+   - Tesseract traineddata files are large; the CDN used here is public (projectnaptha).
+   - For best OCR reliability (Marathi or specialized fonts), host traineddata yourself or run server-side OCR.
+   - For voice cloning: do NOT upload or clone famous actor's voice without legal permission. User-uploaded sample playback is allowed.
+   - If you want server-side processing (reliable OCR & voice cloning) we can design an API end-point and server code next.
+   =========================== */
