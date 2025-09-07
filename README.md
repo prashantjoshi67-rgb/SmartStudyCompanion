@@ -1,40 +1,41 @@
-# SmartStudy Companion (General Edition)
+## Usage
 
-A private-by-design, browser-based study helper that lets you upload PDFs/notes (or ZIPs), auto-organize by subject/chapter, generate summaries & quizzes, practice MCQs/SA/LAs, and track progress — all on your device. Works offline after first load.
+1. Open the app in your browser.
+2. Enter your name and (optionally) license key.
+- Default: Demo
+- Use `FULL-ACCESS` to unlock full mode.
+3. Choose voice (if TTS available) and enable.
+4. Upload files:
+- PDF → text extracted (or OCR fallback).
+- TXT → direct import.
+- Image → OCR.
+- ZIP → unpack if JSZip included.
+5. Click **Process**.
+6. Use tabs to navigate:
+- Library: view documents.
+- Summaries: generate quick/detailed summaries.
+- Quiz: create practice MCQs.
+- Manage: targets, backup/restore.
+- Settings: OCR language, theme.
 
-### 🚀 Live App
-- **Open:** https://prashantjoshi67-rgb.github.io/SmartStudyCompanion/
-- **User Manual:** https://prashantjoshi67-rgb.github.io/SmartStudyCompanion/manuals/User_Manual.html
+## Limitations
 
-> Data stays in your browser (local processing). Nothing is uploaded to any server.
+- OCR (Tesseract) is CPU-intensive on mobile; large PDFs may be slow.
+- Voice output depends on your browser/system voices.
+- Current quiz/summary logic is demo-level; better NLP/LLM can be integrated later.
 
-## Features
-- Upload **PDF/Images/TXT/HTML** or a **ZIP (≤ 500 MB)**; auto-unpacks & organizes
-- Subject/Chapter detection (NCERT-style heuristics + manual override)
-- **Summaries** (bullet points) · **Quizzes** (MCQ/True-False/Short/Long)
-- **Daily target**, streaks, and progress tracking (local storage)
-- **Multilingual UI hints** (English + Indian language labels; extendable)
-- Works on mobile & desktop; offline after first load
+## Roadmap / Planned
 
-## Quick Start
-1. Open the Live App (link above)
-2. Enter your name → **Save**
-3. Click **Choose files** and select PDFs or a ZIP (≤ 500 MB)
-4. Wait for processing → verify subjects/chapters
-5. **Create Summaries** or **Start Quiz**
+- Improved quiz generation using LLM API.
+- KBC-style game mode with audio cues.
+- Multi-user progress tracking.
+- Cloud backup option.
+- Integration of more Indian languages (OCR + TTS).
 
-## Tips
-- Clear, chapter-named PDFs give best auto-grouping (but not mandatory)
-- Very large ZIP? Prefer one ZIP per subject to speed up processing
-- All data is stored locally in your browser; use **Backup/Restore** in Settings
+## License
 
-## Privacy
-- No login. No cloud. Everything runs in your browser.
-- You control backups/archives (export/import).
-
-## Support / Feedback
-Please open an issue or use the in-app **Feedback** button to suggest improvements.
+This project is for educational and personal use. You may adapt it for your own studies or extend it further.
 
 ---
 
-© 2025 Prashant Joshi. All rights reserved.
+<!-- === END OF FILE: README.md === -->
