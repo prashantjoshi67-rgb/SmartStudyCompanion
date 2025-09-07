@@ -1,4 +1,8 @@
-<!-- START OF FILE: index.html -->
+<!-- === START OF FILE: index.html ===
+     Smart Study Companion - main HTML
+     NOTE: This file expects `style.css` and `app.js` to be present in same folder.
+     It also loads pdf.js and tesseract.js from CDNs (worker must be set before app.js).
+-->
 <!doctype html>
 <html lang="en">
 <head>
@@ -6,220 +10,178 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Smart Study Companion</title>
 
-  <!-- Primary stylesheet -->
+  <!-- Stylesheet -->
   <link rel="stylesheet" href="style.css">
 
-  <!-- Small inline helpful note for debugging (remove in final) -->
-  <meta name="description" content="Smart Study Companion — offline-first study helper." />
+  <!-- PDF.js core + worker (must load BEFORE app.js) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.worker.min.js" crossorigin="anonymous"></script>
+  <script>
+    // Ensure PDF.js knows its worker location (required)
+    if (window.pdfjsLib && pdfjsLib.GlobalWorkerOptions) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc =
+        "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.worker.min.js";
+    }
+  </script>
+
+  <!-- Tesseract.js for OCR fallback -->
+  <script src="https://unpkg.com/tesseract.js@v4.1.1/dist/tesseract.min.js"></script>
+
+  <!-- Small inline helper styles for clarity while loading -->
+  <style>
+    :root { --bg:#0f1720; --card:#111827; --muted:#9aa4b2; --accent:#3ad29f; --btn:#2b3742; --card-2:#0b1116; --text:#e6eef6; }
+    html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family:Inter,Arial,Helvetica,sans-serif}
+    .container{max-width:980px;margin:12px auto;padding:10px}
+    header{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+    h1{font-size:36px;margin:6px 0}
+    small.status{color:var(--muted);display:block;margin-top:8px}
+    /* minimal loader box while app.js loads */
+    .boot{background:linear-gradient(90deg,#0b1116,#0f1720);border-radius:10px;padding:12px;margin-top:12px;border:1px solid #222a33}
+    .note{color:var(--muted);font-size:13px;margin-top:6px}
+  </style>
 </head>
 <body>
   <div class="container">
-    <header class="header">
-      <h1>Smart Study Companion</h1>
-      <div class="status" id="status">Status: <span id="statusText">Demo</span></div>
+    <header>
+      <div>
+        <h1>Smart Study Companion</h1>
+        <small class="status" id="statusLabel">Status: <strong id="licenseStatus">Demo</strong></small>
+      </div>
+
+      <!-- Quick status & license input (visible & prominent) -->
+      <div style="min-width:220px;text-align:right">
+        <label for="licenseInput" style="display:block;font-size:13px;color:var(--muted)">Enter license key for Full Access</label>
+        <input id="licenseInput" placeholder="Type license (e.g. FULL-ACCESS)" style="width:100%;padding:8px;border-radius:8px;border:1px solid #24303b;background:#0d1114;color:var(--text)">
+        <button id="applyLicense" class="big" style="margin-top:8px;display:block;width:100%">Apply</button>
+      </div>
     </header>
 
-    <!-- --- START: Controls card --- -->
-    <section class="card controls-card" aria-label="Start · Load material">
-      <h2>Start · Load material</h2>
+    <div class="boot" role="main" aria-live="polite">
+      <h2 style="margin:0 0 8px 0">Start · Load material</h2>
 
-      <!-- 1) Name -->
-      <label for="name">Name</label>
-      <input id="name" type="text" placeholder="Your name" value="" />
-      <button class="btn btn-primary" id="saveName">Save</button>
+      <label class="label">Name</label>
+      <input id="name" placeholder="Your name" value="" />
 
-      <!-- Voice controls -->
-      <div class="row">
-        <label for="voiceSelect">Voice</label>
-        <select id="voiceSelect" aria-label="Voice select">
-          <!-- voice list will be populated by app.js -->
-        </select>
-        <button id="enableVoice" class="btn">Enable</button>
+      <button id="saveName" class="btn btn-primary big" style="margin-top:10px">Save</button>
+
+      <div class="row" style="margin-top:12px;align-items:center">
+        <div style="flex:1">
+          <label class="label">Voice</label>
+          <select id="voiceSelect"></select>
+          <div class="note" style="margin-top:8px">Choose voice language/accent. Then click Enable to activate TTS.</div>
+        </div>
+
+        <div style="width:140px;margin-left:12px;align-self:flex-end">
+          <button id="enableVoice" class="btn">Enable</button>
+        </div>
       </div>
 
-      <!-- Mode (KBC/Game / Normal / Silent) -->
-      <div class="row">
-        <label for="modeSelect">Mode</label>
+      <div style="margin-top:12px">
+        <label class="label">Mode</label>
         <select id="modeSelect">
           <option value="kbc">KBC (Game)</option>
-          <option value="normal">Normal</option>
-          <option value="silent">Silent</option>
+          <option value="normal">Normal (Study)</option>
+          <option value="silent">Silent (No sound)</option>
         </select>
       </div>
 
-      <!-- License -->
-      <label for="license">License</label>
-      <input id="license" type="text" placeholder="License key" value="" />
-      <button id="applyLicense" class="btn">Apply</button>
-
-      <!-- File input -->
-      <div class="row file-row">
-        <label for="fileInput">Files</label>
-        <input id="fileInput" type="file" accept=".pdf,.txt,.html,.zip,.jpg,.png" multiple />
-        <button id="processBtn" class="btn btn-primary">Process</button>
+      <div style="margin-top:12px">
+        <label class="label">Files</label>
+        <input id="fileInput" type="file" multiple />
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button id="processBtn" class="btn btn-primary">Process</button>
+          <button id="deleteAll" class="btn btn-danger">Delete all files</button>
+        </div>
+        <div class="note">Accepted: PDF / TXT / HTML / JPG / PNG / ZIP (auto-unpacks). Demo upload limit ~50MB; full mode supports larger files.</div>
       </div>
+    </div>
 
-      <!-- Delete all library -->
-      <div class="row">
-        <button id="deleteAll" class="btn danger">Delete all files</button>
-      </div>
-
-      <p class="note">Accepted: PDF / TXT / HTML / JPG / PNG / ZIP (auto-unpacks). Demo upload limit ~50MB; full mode supports larger files.</p>
-    </section>
-    <!-- --- END: Controls card --- -->
-
-    <!-- --- START: Navigation tabs --- -->
-    <nav class="tabs" role="tablist" aria-label="Main tabs">
-      <button class="tab" data-tab="library">Library</button>
-      <button class="tab" data-tab="summaries">Summaries</button>
-      <button class="tab" data-tab="quiz">Quiz</button>
-      <button class="tab" data-tab="manage">Manage</button>
-      <button class="tab" data-tab="settings">Settings</button>
-      <button class="tab" data-tab="feedback">Feedback</button>
-      <button class="tab" data-tab="help">Help</button>
+    <!-- Primary navigation -->
+    <nav style="margin-top:18px;display:flex;gap:8px;flex-wrap:wrap">
+      <button class="nav" data-panel="library">Library</button>
+      <button class="nav" data-panel="summaries">Summaries</button>
+      <button class="nav" data-panel="quiz">Quiz</button>
+      <button class="nav" data-panel="manage">Manage</button>
+      <button class="nav" data-panel="settings">Settings</button>
+      <button class="nav" data-panel="help">Help</button>
     </nav>
-    <!-- --- END: Navigation tabs --- -->
 
-    <!-- --- START: Library panel --- -->
-    <section id="panel-library" class="panel active">
+    <!-- Panels -->
+    <section id="library" class="panel" style="margin-top:18px">
       <h2>Current library</h2>
-      <ul id="libraryList" class="library-list" aria-live="polite">
-        <!-- populated by app.js -->
-      </ul>
+      <div id="libraryList" class="card"></div>
     </section>
-    <!-- --- END: Library panel --- -->
 
-    <!-- --- START: Summaries panel --- -->
-    <section id="panel-summaries" class="panel">
+    <section id="summaries" class="panel" style="display:none;margin-top:18px">
       <h2>Summaries</h2>
       <div class="controls">
-        <button id="quickSummary" class="btn">Quick</button>
-        <button id="detailedSummary" class="btn">Detailed</button>
-        <button id="readSummary" class="btn">Read</button>
-        <button id="createMCQs" class="btn">Create MCQs</button>
+        <button id="quickSum" class="btn">Quick</button>
+        <button id="detailedSum" class="btn">Detailed</button>
+        <button id="readSum" class="btn">Read</button>
+        <button id="createMCQ" class="btn">Create MCQs</button>
       </div>
-      <div id="summaryOutput" class="outputbox" aria-live="polite">
-        <!-- summaries will appear here -->
-      </div>
-      <p class="note" id="ocrNote">(If PDF extraction failed: maybe image-based PDF; OCR required. Choose OCR language in Settings and re-process.)</p>
+      <div id="summaryOutput" class="card" style="min-height:160px;margin-top:12px">(summaries will appear here)</div>
     </section>
-    <!-- --- END: Summaries panel --- -->
 
-    <!-- --- START: Quiz panel --- -->
-    <section id="panel-quiz" class="panel">
+    <section id="quiz" class="panel" style="display:none;margin-top:18px">
       <h2>Quiz</h2>
-      <div class="row">
-        <label for="quizType">Type</label>
-        <select id="quizType">
-          <option value="mcq4">MCQ (4 choices)</option>
-          <option value="truefalse">True/False</option>
-          <option value="short">Short answer</option>
-        </select>
-
-        <label for="quizTimer">Timer</label>
-        <select id="quizTimer">
-          <option value="0">No timer</option>
-          <option value="30">30s</option>
-          <option value="60">60s</option>
-        </select>
-      </div>
-
       <div class="controls">
-        <button id="generateQuiz" class="btn btn-primary">Generate</button>
-        <button id="readQuiz" class="btn">Read</button>
-        <button id="copyQuiz" class="btn">Copy</button>
-      </div>
-
-      <div id="quizOutput" class="outputbox" aria-live="polite">Quiz appears here...</div>
-    </section>
-    <!-- --- END: Quiz panel --- -->
-
-    <!-- --- START: Manage panel --- -->
-    <section id="panel-manage" class="panel">
-      <h2>Manage</h2>
-      <p>Manage your uploads, syllabus maps and backups.</p>
-      <div class="row">
-        <button id="exportBackup" class="btn">Backup</button>
-        <button id="importBackup" class="btn">Restore</button>
-      </div>
-      <div class="note">Select files in Library to delete or restore.</div>
-    </section>
-    <!-- --- END: Manage panel --- -->
-
-    <!-- --- START: Settings / OCR panel --- -->
-    <section id="panel-settings" class="panel">
-      <h2>Settings / OCR</h2>
-      <div class="row">
-        <label for="ocrLang">OCR language</label>
-        <select id="ocrLang">
-          <option value="eng">English</option>
-          <option value="hin">Hindi</option>
-          <option value="eng+hin">Eng+Hin</option>
-          <option value="mar">Marathi</option>
-          <option value="guj">Gujarati</option>
+        <label>Type</label>
+        <select id="quizType">
+          <option>MCQ (4 choices)</option>
+          <option>True / False</option>
         </select>
-        <button id="ocrHelp" class="btn">Help</button>
+        <label>Timer</label>
+        <select id="quizTimer">
+          <option value="none">No timer</option>
+          <option value="10">10s</option>
+          <option value="20">20s</option>
+        </select>
       </div>
-      <p class="note">Tip: OCR is CPU-heavy on mobile — prefer desktop for large batches. You can download worker files for extra languages in Manage.</p>
-    </section>
-    <!-- --- END: Settings panel --- -->
-
-    <!-- --- START: Feedback & Help panels --- -->
-    <section id="panel-feedback" class="panel">
-      <h2>Feedback</h2>
-      <p>Send feedback (displayed email is editable in app):</p>
-      <div class="row">
-        <input id="feedbackEmail" type="email" placeholder="your-email@example.com" />
-        <button id="sendFeedback" class="btn">Send</button>
-      </div>
+      <div id="quizOutput" class="card" style="min-height:160px;margin-top:12px">(quiz appears here)</div>
     </section>
 
-    <section id="panel-help" class="panel">
+    <section id="manage" class="panel" style="display:none;margin-top:18px">
+      <h2>Manage</h2>
+      <div class="card" style="padding:12px">
+        <label>Backup / Restore</label>
+        <div style="margin-top:8px">
+          <button id="exportData" class="btn">Export data (JSON)</button>
+          <input id="importFile" type="file" accept=".json" style="margin-left:8px" />
+        </div>
+      </div>
+    </section>
+
+    <section id="settings" class="panel" style="display:none;margin-top:18px">
+      <h2>Settings / OCR</h2>
+      <label>OCR language</label>
+      <select id="ocrLang">
+        <option value="eng">English (eng)</option>
+        <option value="hin">Hindi (hin)</option>
+        <option value="mar">Marathi (mar)</option>
+        <option value="eng+hin">Eng + Hin</option>
+      </select>
+      <div class="note" style="margin-top:8px">Tip: OCR is CPU intensive on mobile. Prefer desktop for large batches. For better OCR accuracy increase image scale in developer settings.</div>
+    </section>
+
+    <section id="help" class="panel" style="display:none;margin-top:18px">
       <h2>Help</h2>
-      <p>Quick tips and user manual links.</p>
-      <a id="userManual" href="manuals/User_Manual.html" target="_blank">Open User Manual</a>
+      <div class="card">
+        <p><strong>Quick checklist:</strong></p>
+        <ol>
+          <li>Apply license key for Full Access (enter <code>FULL-ACCESS</code> for a full-access demo).</li>
+          <li>Choose files (PDF / ZIP / TXT / images) and click Process.</li>
+          <li>If extraction fails, select OCR language and re-process.</li>
+        </ol>
+        <p class="note">If you want local voice cloning or upload custom voice samples we provide instructions in the Developer Manual.</p>
+      </div>
     </section>
-    <!-- --- END: Feedback & Help panels --- -->
 
-    <footer class="footer">
-      <small>Made with ❤️ — Smart Study Companion · Works offline after first load.</small>
+    <footer style="margin-top:18px">
+      <div class="note">Made with ❤️ — Smart Study Companion · Works offline after first load</div>
     </footer>
   </div>
 
-  <!-- CDN libraries (required) -->
-  <!-- JSZip (for ZIP unpacking) -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" crossorigin="anonymous"></script>
-
-  <!-- PDF.js (text extraction) + worker. Ensure version matches what app.js expects -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.min.js" crossorigin="anonymous"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.worker.min.js" crossorigin="anonymous"></script>
-
-  <!-- Tesseract.js (for OCR) -->
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.1.3/dist/tesseract.min.js" crossorigin="anonymous"></script>
-
-  <!-- Main app logic (must match the file you committed) -->
+  <!-- App logic (app.js should be the full final file) -->
   <script src="app.js"></script>
-
-  <!-- Inline helper to wire tabs quickly if app.js didn't -->
-  <script>
-    (function () {
-      // Basic tab wiring (app.js may replace this)
-      const tabs = document.querySelectorAll('.tab');
-      const panels = document.querySelectorAll('.panel');
-      tabs.forEach(t=>t.addEventListener('click', ()=> {
-        const tab = t.getAttribute('data-tab');
-        panels.forEach(p=>p.classList.remove('active'));
-        document.getElementById('panel-'+tab).classList.add('active');
-        tabs.forEach(x=>x.classList.remove('active'));
-        t.classList.add('active');
-      }));
-      // show default (library)
-      document.querySelector('.tab[data-tab="library"]').classList.add('active');
-      document.getElementById('panel-library').classList.add('active');
-    })();
-  </script>
-
-  <!-- END -->
   <!-- === END OF FILE: index.html === -->
-</body>
-</html>
