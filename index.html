@@ -1,7 +1,8 @@
 <!-- === START OF FILE: index.html ===
      Smart Study Companion - main HTML
-     NOTE: This file expects `style.css` and `app.js` to be present in same folder.
-     It also loads pdf.js and tesseract.js from CDNs (worker must be set before app.js).
+     - Includes pdf.js, Tesseract.js and JSZip via CDN
+     - Loads style.css and app.js
+     Make sure app.js and style.css are present in the same folder or update paths.
 -->
 <!doctype html>
 <html lang="en">
@@ -13,175 +14,163 @@
   <!-- Stylesheet -->
   <link rel="stylesheet" href="style.css">
 
-  <!-- PDF.js core + worker (must load BEFORE app.js) -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.min.js" crossorigin="anonymous"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.worker.min.js" crossorigin="anonymous"></script>
-  <script>
-    // Ensure PDF.js knows its worker location (required)
-    if (window.pdfjsLib && pdfjsLib.GlobalWorkerOptions) {
-      pdfjsLib.GlobalWorkerOptions.workerSrc =
-        "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.worker.min.js";
-    }
-  </script>
+  <!-- PDF.js (for text extraction). Uses pdfjs-dist CDN. -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.min.js" defer></script>
 
-  <!-- Tesseract.js for OCR fallback -->
-  <script src="https://unpkg.com/tesseract.js@v4.1.1/dist/tesseract.min.js"></script>
+  <!-- Tesseract.js (optional - OCR fallback). If you prefer not to include, remove this line. -->
+  <script src="https://unpkg.com/tesseract.js@v2.1.5/dist/tesseract.min.js" defer></script>
 
-  <!-- Small inline helper styles for clarity while loading -->
-  <style>
-    :root { --bg:#0f1720; --card:#111827; --muted:#9aa4b2; --accent:#3ad29f; --btn:#2b3742; --card-2:#0b1116; --text:#e6eef6; }
-    html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family:Inter,Arial,Helvetica,sans-serif}
-    .container{max-width:980px;margin:12px auto;padding:10px}
-    header{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
-    h1{font-size:36px;margin:6px 0}
-    small.status{color:var(--muted);display:block;margin-top:8px}
-    /* minimal loader box while app.js loads */
-    .boot{background:linear-gradient(90deg,#0b1116,#0f1720);border-radius:10px;padding:12px;margin-top:12px;border:1px solid #222a33}
-    .note{color:var(--muted);font-size:13px;margin-top:6px}
-  </style>
+  <!-- JSZip for unpacking ZIPs (optional) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" defer></script>
+
+  <!-- App script (loads after libraries) -->
+  <script src="app.js" defer></script>
+
 </head>
 <body>
   <div class="container">
     <header>
-      <div>
-        <h1>Smart Study Companion</h1>
-        <small class="status" id="statusLabel">Status: <strong id="licenseStatus">Demo</strong></small>
-      </div>
-
-      <!-- Quick status & license input (visible & prominent) -->
-      <div style="min-width:220px;text-align:right">
-        <label for="licenseInput" style="display:block;font-size:13px;color:var(--muted)">Enter license key for Full Access</label>
-        <input id="licenseInput" placeholder="Type license (e.g. FULL-ACCESS)" style="width:100%;padding:8px;border-radius:8px;border:1px solid #24303b;background:#0d1114;color:var(--text)">
-        <button id="applyLicense" class="big" style="margin-top:8px;display:block;width:100%">Apply</button>
-      </div>
+      <h1>Smart Study Companion</h1>
+      <div id="licenseStatus" class="status">Status: Demo</div>
     </header>
 
-    <div class="boot" role="main" aria-live="polite">
-      <h2 style="margin:0 0 8px 0">Start · Load material</h2>
+    <main>
+      <section class="card">
+        <h2>Start · Load material</h2>
 
-      <label class="label">Name</label>
-      <input id="name" placeholder="Your name" value="" />
+        <label class="field">
+          <div class="label">Name</div>
+          <input id="nameInput" type="text" placeholder="Your name" />
+        </label>
+        <button id="saveName" class="btn primary">Save</button>
 
-      <button id="saveName" class="btn btn-primary big" style="margin-top:10px">Save</button>
-
-      <div class="row" style="margin-top:12px;align-items:center">
-        <div style="flex:1">
-          <label class="label">Voice</label>
-          <select id="voiceSelect"></select>
-          <div class="note" style="margin-top:8px">Choose voice language/accent. Then click Enable to activate TTS.</div>
+        <div class="row">
+          <div style="flex:1">
+            <div class="label">Voice</div>
+            <select id="voiceSelect" aria-label="Choose voice"></select>
+          </div>
+          <div style="width:140px; margin-left:12px">
+            <button id="toggleVoice" class="btn">Enable</button>
+          </div>
         </div>
 
-        <div style="width:140px;margin-left:12px;align-self:flex-end">
-          <button id="enableVoice" class="btn">Enable</button>
+        <div class="row">
+          <div style="flex:1">
+            <div class="label">Mode</div>
+            <select id="modeSelect">
+              <option value="kbc">KBC (Game)</option>
+              <option value="normal">Normal</option>
+              <option value="silent">Silent</option>
+            </select>
+          </div>
+          <div style="width:140px; margin-left:12px">
+            <div class="label">License</div>
+            <input id="licenseInput" type="text" placeholder="FULL-ACCESS" />
+            <button id="applyLicense" class="btn">Apply</button>
+          </div>
         </div>
-      </div>
 
-      <div style="margin-top:12px">
-        <label class="label">Mode</label>
-        <select id="modeSelect">
-          <option value="kbc">KBC (Game)</option>
-          <option value="normal">Normal (Study)</option>
-          <option value="silent">Silent (No sound)</option>
+        <label class="field">
+          <div class="label">Files</div>
+          <input id="fileInput" type="file" multiple />
+        </label>
+        <div class="row" style="margin-top:10px">
+          <button id="processBtn" class="btn primary">Process</button>
+          <button id="deleteAll" class="btn danger" style="margin-left:12px">Delete all files</button>
+        </div>
+
+        <p class="note">Accepted: PDF / TXT / HTML / JPG / PNG / ZIP (auto-unpacks). Demo upload limit ~50MB; full mode supports larger files.</p>
+      </section>
+
+      <!-- Tabs -->
+      <nav class="tabs">
+        <button id="tab_library" class="tab active">Library</button>
+        <button id="tab_summaries" class="tab">Summaries</button>
+        <button id="tab_quiz" class="tab">Quiz</button>
+        <button id="tab_manage" class="tab">Manage</button>
+        <button id="tab_settings" class="tab">Settings</button>
+        <button id="tab_help" class="tab">Help</button>
+      </nav>
+
+      <!-- Panes -->
+      <section id="pane_library" class="pane">
+        <h3>Current library</h3>
+        <div id="libraryList" class="list"></div>
+      </section>
+
+      <section id="pane_summaries" class="pane" style="display:none">
+        <h3>Summaries</h3>
+        <div class="controls">
+          <button id="quickSummary" class="btn">Quick</button>
+          <button id="detailedSummary" class="btn">Detailed</button>
+          <button id="readSummary" class="btn">Read</button>
+          <button id="createMCQ" class="btn">Create MCQs</button>
+        </div>
+        <pre id="summaryOutput" class="output">(Summaries will appear here...)</pre>
+      </section>
+
+      <section id="pane_quiz" class="pane" style="display:none">
+        <h3>Quiz</h3>
+        <div class="controls">
+          <div class="label">Type</div>
+          <select id="quizType">
+            <option>MCQ (4 choices)</option>
+            <option>Short answer</option>
+          </select>
+          <div class="label">Timer</div>
+          <select id="quizTimer">
+            <option>No timer</option>
+            <option>30s per Q</option>
+            <option>60s per Q</option>
+          </select>
+        </div>
+        <div id="quizArea" class="output">(Not ready until material processed)</div>
+      </section>
+
+      <section id="pane_manage" class="pane" style="display:none">
+        <h3>Manage</h3>
+        <div class="row">
+          <div style="flex:1">
+            <div class="label">Daily target</div>
+            <input id="targetInput" type="number" min="1" />
+            <button id="setTargetBtn" class="btn">Set</button>
+          </div>
+          <div style="flex:1; margin-left:12px">
+            <div class="label">Backup / Restore</div>
+            <button id="exportBackup" class="btn">Export backup</button>
+            <input id="importBackupFile" type="file" accept=".json" />
+          </div>
+        </div>
+      </section>
+
+      <section id="pane_settings" class="pane" style="display:none">
+        <h3>Settings</h3>
+        <div class="label">OCR language</div>
+        <select id="ocrLang">
+          <option value="eng">English (eng)</option>
+          <option value="hin">Hindi (hin)</option>
+          <option value="mar">Marathi (mar)</option>
         </select>
-      </div>
 
-      <div style="margin-top:12px">
-        <label class="label">Files</label>
-        <input id="fileInput" type="file" multiple />
-        <div style="display:flex;gap:8px;margin-top:8px">
-          <button id="processBtn" class="btn btn-primary">Process</button>
-          <button id="deleteAll" class="btn btn-danger">Delete all files</button>
-        </div>
-        <div class="note">Accepted: PDF / TXT / HTML / JPG / PNG / ZIP (auto-unpacks). Demo upload limit ~50MB; full mode supports larger files.</div>
-      </div>
-    </div>
-
-    <!-- Primary navigation -->
-    <nav style="margin-top:18px;display:flex;gap:8px;flex-wrap:wrap">
-      <button class="nav" data-panel="library">Library</button>
-      <button class="nav" data-panel="summaries">Summaries</button>
-      <button class="nav" data-panel="quiz">Quiz</button>
-      <button class="nav" data-panel="manage">Manage</button>
-      <button class="nav" data-panel="settings">Settings</button>
-      <button class="nav" data-panel="help">Help</button>
-    </nav>
-
-    <!-- Panels -->
-    <section id="library" class="panel" style="margin-top:18px">
-      <h2>Current library</h2>
-      <div id="libraryList" class="card"></div>
-    </section>
-
-    <section id="summaries" class="panel" style="display:none;margin-top:18px">
-      <h2>Summaries</h2>
-      <div class="controls">
-        <button id="quickSum" class="btn">Quick</button>
-        <button id="detailedSum" class="btn">Detailed</button>
-        <button id="readSum" class="btn">Read</button>
-        <button id="createMCQ" class="btn">Create MCQs</button>
-      </div>
-      <div id="summaryOutput" class="card" style="min-height:160px;margin-top:12px">(summaries will appear here)</div>
-    </section>
-
-    <section id="quiz" class="panel" style="display:none;margin-top:18px">
-      <h2>Quiz</h2>
-      <div class="controls">
-        <label>Type</label>
-        <select id="quizType">
-          <option>MCQ (4 choices)</option>
-          <option>True / False</option>
+        <div class="label">Theme</div>
+        <select id="themeSelect">
+          <option value="dark">Dark</option>
+          <option value="vibrant">Vibrant</option>
+          <option value="light">Light</option>
         </select>
-        <label>Timer</label>
-        <select id="quizTimer">
-          <option value="none">No timer</option>
-          <option value="10">10s</option>
-          <option value="20">20s</option>
-        </select>
-      </div>
-      <div id="quizOutput" class="card" style="min-height:160px;margin-top:12px">(quiz appears here)</div>
-    </section>
+      </section>
 
-    <section id="manage" class="panel" style="display:none;margin-top:18px">
-      <h2>Manage</h2>
-      <div class="card" style="padding:12px">
-        <label>Backup / Restore</label>
-        <div style="margin-top:8px">
-          <button id="exportData" class="btn">Export data (JSON)</button>
-          <input id="importFile" type="file" accept=".json" style="margin-left:8px" />
-        </div>
-      </div>
-    </section>
+      <section id="pane_help" class="pane" style="display:none">
+        <h3>Help</h3>
+        <p>Quick tips: Upload PDFs. If text extraction fails for PDFs created from scans, choose OCR language and re-process. Voice uses your browser TTS voices.</p>
+      </section>
 
-    <section id="settings" class="panel" style="display:none;margin-top:18px">
-      <h2>Settings / OCR</h2>
-      <label>OCR language</label>
-      <select id="ocrLang">
-        <option value="eng">English (eng)</option>
-        <option value="hin">Hindi (hin)</option>
-        <option value="mar">Marathi (mar)</option>
-        <option value="eng+hin">Eng + Hin</option>
-      </select>
-      <div class="note" style="margin-top:8px">Tip: OCR is CPU intensive on mobile. Prefer desktop for large batches. For better OCR accuracy increase image scale in developer settings.</div>
-    </section>
-
-    <section id="help" class="panel" style="display:none;margin-top:18px">
-      <h2>Help</h2>
-      <div class="card">
-        <p><strong>Quick checklist:</strong></p>
-        <ol>
-          <li>Apply license key for Full Access (enter <code>FULL-ACCESS</code> for a full-access demo).</li>
-          <li>Choose files (PDF / ZIP / TXT / images) and click Process.</li>
-          <li>If extraction fails, select OCR language and re-process.</li>
-        </ol>
-        <p class="note">If you want local voice cloning or upload custom voice samples we provide instructions in the Developer Manual.</p>
-      </div>
-    </section>
-
-    <footer style="margin-top:18px">
-      <div class="note">Made with ❤️ — Smart Study Companion · Works offline after first load</div>
-    </footer>
+      <footer style="margin-top:20px">
+        <div class="note">Made with ❤️ — Smart Study Companion. Works offline after first load.</div>
+        <div id="statusLabel" class="status small">Ready.</div>
+      </footer>
+    </main>
   </div>
-
-  <!-- App logic (app.js should be the full final file) -->
-  <script src="app.js"></script>
-  <!-- === END OF FILE: index.html === -->
+</body>
+</html>
+<!-- === END OF FILE: index.html === -->
